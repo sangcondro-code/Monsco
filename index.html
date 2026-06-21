@@ -4,70 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
     <title>Monsco</title>
-
-    <!-- KUNCI: paksa skema warna tetap terang, jangan ikut Dark Mode HP -->
-    <meta name="color-scheme" content="light only">
-    <meta name="supported-color-schemes" content="light">
-
     <!-- Favicon biasa (tab browser) -->
     <link rel="icon" type="image/png" sizes="32x32" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/favicon-16x16.png">
     <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/favicon-32x32.png">
-
     <!-- Apple Touch Icon untuk iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/apple-touch-icon.png">
-
     <!-- Ikon PWA / Android -->
     <link rel="icon" type="image/png" sizes="192x192" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/icon-512.png">
-
     <!-- Meta iOS home screen -->
     <meta name="apple-mobile-web-app-title" content="Monsco">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#005CAA">
-
     <style>
-        :root {
-            color-scheme: light;
-        }
-        html, body {
+        body, html {
             margin: 0;
             padding: 0;
             height: 100%;
             width: 100%;
             overflow: hidden;
-            background-color: #005CAA !important; /* warna fallback area notch/status bar */
+            background-color: #ffffff;
         }
-        /* Jaga-jaga: paksa tetap terang walau HP di Dark Mode */
-        @media (prefers-color-scheme: dark) {
-            :root { color-scheme: light !important; }
-            html, body { background-color: #005CAA !important; }
-        }
-
-        /* Strip biru di belakang status bar translucent (notch/dynamic island) */
-        .safe-top {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: env(safe-area-inset-top);
-            background-color: #005CAA;
-            z-index: 10;
-        }
-
         iframe {
             border: none;
             width: 100%;
             height: 100%;
             display: block;
-            background-color: #ffffff;
         }
     </style>
 </head>
 <body>
-    <div class="safe-top"></div>
     <iframe
         src="https://script.google.com/macros/s/AKfycbyWtIlv4z1POEJz86nRRTvXsbLGmvZ29SOLQx_qTD1CaR5wox8HyBVryIYIwa47Xzh1/exec"
         allow="publickey-credentials-create *; publickey-credentials-get *"
     ></iframe>
 </body>
 </html>
+
+tolong perbaiki ini agar di iphone ketika add to homescreen warnanya tidak mengikuti tema hp jika dark tetap biru seperti logo yang sudah ada
