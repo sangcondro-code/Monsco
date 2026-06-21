@@ -4,37 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
     <title>Monsco</title>
+    <!-- Favicon biasa (tab browser) -->
     <link rel="icon" type="image/png" sizes="32x32" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/favicon-16x16.png">
     <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/favicon-32x32.png">
+    <!-- Apple Touch Icon untuk iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/apple-touch-icon.png">
+    <!-- Ikon PWA / Android -->
     <link rel="icon" type="image/png" sizes="192x192" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="https://cdn.jsdelivr.net/gh/sangcondro-code/Monsco@main/icon-512.png">
+    <!-- Meta iOS home screen -->
     <meta name="apple-mobile-web-app-title" content="Monsco">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#005CAA">
     <style>
-        body, html { margin:0; padding:0; height:100%; width:100%; overflow:hidden; background-color:#ffffff; }
-        iframe { border:none; width:100%; height:100%; display:block; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+        iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <script>
-        var APP_URL = "https://script.google.com/macros/s/AKfycbyWtIlv4z1POEJz86nRRTvXsbLGmvZ29SOLQx_qTD1CaR5wox8HyBVryIYIwa47Xzh1/exec";
-
-        // Deteksi mobile: WebAuthn (fingerprint/Face ID) di mobile browser
-        // hampir selalu diblokir kalau halaman dimuat di dalam iframe lintas-origin.
-        // Jadi khusus mobile, jangan iframe — langsung pindah ke top-level.
-        var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 900;
-
-        if (isMobile) {
-            window.top.location.href = APP_URL;
-        } else {
-            document.write(
-              '<iframe src="' + APP_URL + '" allow="publickey-credentials-create *; publickey-credentials-get *"></iframe>'
-            );
-        }
-    </script>
+    <iframe
+        src="https://script.google.com/macros/s/AKfycbyWtIlv4z1POEJz86nRRTvXsbLGmvZ29SOLQx_qTD1CaR5wox8HyBVryIYIwa47Xzh1/exec"
+        allow="publickey-credentials-create *; publickey-credentials-get *"
+    ></iframe>
 </body>
 </html>
