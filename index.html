@@ -269,6 +269,8 @@
 
     .tbl thead { background:var(--brand); color:white; }
     .tbl th { padding:10px 12px; font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; font-weight:600; border:none; white-space:nowrap; background-color:var(--brand) !important; color:#fff !important; }
+    .tbl thead th:first-child { border-top-left-radius:.75rem !important; }
+    .tbl thead th:last-child { border-top-right-radius:.75rem !important; }
     .tbl td { padding:10px 12px; vertical-align:middle; border-bottom:1px solid #f3f4f6; color:#374151; }
     .tbl tbody tr:hover { background:#fafafa; }
 
@@ -2456,7 +2458,7 @@
         </div>
       </div>
 
-      <div class="card wm-card mb-4">
+      <div class="card wm-card card-table-clip mb-4">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
             <div class="section-title mb-0"><i class="fas fa-coins"></i>Non-Liquid Assets</div>
@@ -2473,7 +2475,7 @@
       </div>
 
       <!-- ===== STOCK PORTFOLIO (SAHAM IDX) ===== -->
-      <div class="card wm-card mb-4">
+      <div class="card wm-card card-table-clip mb-4">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
             <div class="section-title mb-0"><i class="fas fa-chart-line"></i>Stock Portfolio (Saham)</div>
@@ -2483,9 +2485,9 @@
             </div>
           </div>
           <div class="text-muted small mb-3">IDX stocks — company name &amp; current price are fetched automatically via Yahoo Finance. Profit/Loss recalculates instantly whenever the price moves.</div>
-          <div class="table-responsive" style="max-height:40vh;overflow-y:auto;">
+          <div class="table-responsive">
             <table class="table tbl mb-0">
-              <thead style="position:sticky;top:0;z-index:5;">
+              <thead>
                 <tr>
                   <th>Ticker</th><th>Company</th><th class="text-end">Shares / Lot</th><th class="text-end">Total Buy</th>
                   <th class="text-end">Avg Price</th><th class="text-end">Current Price</th><th class="text-end">Market Value</th>
@@ -2666,7 +2668,7 @@
 
       <div id="spanel-account" class="setup-panel d-none">
         <p class="empty-hint mb-3"><i class="fas fa-info-circle me-1"></i>Manage your bank/e-wallet accounts. Used in Add Spending, Transfer Account, Budgeting (Add Income/Add Saving), and Wealth Management.</p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="d-flex gap-2 mb-3">
             <input type="text" class="form-control" id="sinput-account" placeholder="New account name, e.g. Jago">
             <button class="btn fw-bold text-white" style="background:var(--brand);" onclick="addSetup('account')"><i class="fas fa-plus me-1"></i>Add</button>
@@ -2677,7 +2679,7 @@
 
       <div id="spanel-income" class="setup-panel d-none">
         <p class="empty-hint mb-3"><i class="fas fa-info-circle me-1"></i>Manage income source categories, used for Budgeting (planned amount and Add Income).</p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="d-flex gap-2 mb-3">
             <input type="text" class="form-control" id="sinput-income" placeholder="New income source, e.g. Bonus">
             <button class="btn fw-bold text-white" style="background:var(--brand);" onclick="addSetup('income')"><i class="fas fa-plus me-1"></i>Add</button>
@@ -2688,7 +2690,7 @@
 
       <div id="spanel-needs" class="setup-panel d-none">
         <p class="empty-hint mb-3"><i class="fas fa-info-circle me-1"></i>Manage "Needs" categories — essential expenses.</p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="d-flex gap-2 mb-3">
             <input type="text" class="form-control" id="sinput-needs" placeholder="New Needs category, e.g. Internet">
             <button class="btn fw-bold text-white" style="background:var(--brand);" onclick="addSetup('needs')"><i class="fas fa-plus me-1"></i>Add</button>
@@ -2699,7 +2701,7 @@
 
       <div id="spanel-wants" class="setup-panel d-none">
         <p class="empty-hint mb-3"><i class="fas fa-info-circle me-1"></i>Manage "Wants" categories — discretionary/lifestyle expenses.</p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="d-flex gap-2 mb-3">
             <input type="text" class="form-control" id="sinput-wants" placeholder="New Wants category, e.g. Subscriptions">
             <button class="btn fw-bold text-white" style="background:var(--brand);" onclick="addSetup('wants')"><i class="fas fa-plus me-1"></i>Add</button>
@@ -2710,7 +2712,7 @@
 
       <div id="spanel-savings" class="setup-panel d-none">
         <p class="empty-hint mb-3"><i class="fas fa-info-circle me-1"></i>Manage Savings categories. <b>Initial Balance</b> = saldo yang sudah ada sebelum mulai pakai Monsco. Klik ikon <i class="fas fa-wallet"></i> untuk set/edit initial balance.</p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="d-flex gap-2 mb-3">
             <input type="text" class="form-control" id="sinput-savings" placeholder="New Savings category, e.g. Gold">
             <button class="btn fw-bold text-white" style="background:var(--brand);" onclick="addSetup('savings')"><i class="fas fa-plus me-1"></i>Add</button>
@@ -2721,7 +2723,7 @@
 
       <div id="spanel-assetCategory" class="setup-panel d-none">
         <p class="empty-hint mb-3"><i class="fas fa-info-circle me-1"></i>Manage Asset categories, used in Wealth Management's "Add Asset" (e.g. Property, Vehicle, Deposit, Gold).</p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="d-flex gap-2 mb-3">
             <input type="text" class="form-control" id="sinput-assetCategory" placeholder="New Asset category, e.g. Property">
             <button class="btn fw-bold text-white" style="background:var(--brand);" onclick="addSetup('assetCategory')"><i class="fas fa-plus me-1"></i>Add</button>
@@ -2732,7 +2734,7 @@
 
       <div id="spanel-tag" class="setup-panel d-none">
         <p class="empty-hint mb-3"><i class="fas fa-info-circle me-1"></i>Manage free-form Tags — useful for grouping transactions that span multiple categories under one "bucket" (e.g. "Bali Trip", "Reimburse", "Wedding"). Optional, can be left empty on any transaction.</p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="d-flex gap-2 mb-3">
             <input type="text" class="form-control" id="sinput-tag" placeholder="New tag, e.g. Bali Trip">
             <button class="btn fw-bold text-white" style="background:var(--brand);" onclick="addSetup('tag')"><i class="fas fa-plus me-1"></i>Add</button>
@@ -2910,7 +2912,7 @@
           Years outside the <span id="arch-window-years">2</span>-year active window can be archived to a separate Spreadsheet to keep the main file lightweight.
           Archived data can still be viewed (read-only) via the year dropdown as usual.
         </p>
-        <div class="card"><div class="card-body">
+        <div class="card card-table-clip"><div class="card-body">
           <div class="table-responsive">
             <table class="table tbl mb-0">
               <thead><tr><th>Year</th><th>Status</th><th class="text-center" style="width:160px;">Action</th></tr></thead>
