@@ -5957,6 +5957,9 @@ function onYearChange(sel) {
 var VIEWS = ['dashboard', 'add-spending', 'transfer-account', 'transactions', 'budgeting', 'recurring', 'reminders', 'asset', 'fire-calculator', 'debt', 'setup'];
 
 function go(view) {
+  // Leaving Budgeting with a month header still in mass-edit mode (Save/
+  // Cancel showing) shouldn't leave that stuck for next time the page opens.
+  if (view !== 'budgeting') BUD_YEARLY_EDIT_MONTH = null;
   // Close inline pocket detail when leaving the wealth/asset page
   if (view !== 'asset') {
     var detailSec = document.getElementById('gs-pocket-detail-section');
