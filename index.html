@@ -10899,7 +10899,16 @@ function promptRolloverRemainingToIncome(opts) {
   var accountList = (STATE.data.setup.account || []).filter(isAccountSelectable_);
   var pocketList = STATE.data.setup.savings || [];
   var canIncome = incomeList.length && accountList.length;
-  var canPocket = pocketList.length;
+  // BUG FIX: jalur "Directly to Pocket" dulu TIDAK meminta akun sumber sama
+  // sekali — backend menyimpan Account kosong di baris Deposit-nya, jadi
+  // computeAccountBalances() (yang HANYA mengurangi saldo akun kalau
+  // p.Account cocok dengan nama akun asli) tidak pernah menyentuh akun
+  // manapun. Hasilnya: saldo Pocket/Savings naik, tapi saldo bank/cash TIDAK
+  // ikut berkurang — uang kelihatan "duplikat" (ada di dua tempat sekaligus).
+  // Sekarang jalur Pocket juga WAJIB pilih akun sumber, persis seperti Add
+  // Saving mandiri di halaman Wealth (addPocketSaving), supaya rollover
+  // benar-benar memindahkan uang keluar dari akun itu.
+  var canPocket = pocketList.length && accountList.length;
   if (!canIncome && !canPocket) {
     Swal.fire('Nothing set up yet', 'Add an Income category + Account, or a Savings/Pocket category, in Setup first.', 'warning');
     return;
@@ -10940,7 +10949,7 @@ function promptRolloverRemainingToIncome(opts) {
         '<div style="font-weight:600;font-size:.78rem;margin-bottom:6px;color:#374151;">Where should it go?</div>' +
         '<div style="display:flex;gap:8px;margin-bottom:14px;">' +
           '<button type="button" id="ro-dest-income" class="ro-dest-btn"' + (!canIncome ? ' disabled title="Add an Income category and Account in Setup first"' : '') + '>Income next month</button>' +
-          '<button type="button" id="ro-dest-pocket" class="ro-dest-btn"' + (!canPocket ? ' disabled title="Add a Savings/Pocket category in Setup first"' : '') + '>Directly to Pocket</button>' +
+          '<button type="button" id="ro-dest-pocket" class="ro-dest-btn"' + (!canPocket ? ' disabled title="Add a Savings/Pocket category and an Account in Setup first"' : '') + '>Directly to Pocket</button>' +
         '</div>' +
         '<div id="ro-income-fields"' + (canIncome ? '' : ' style="display:none;"') + '>' +
           '<label style="font-weight:600;font-size:.78rem;display:block;margin-bottom:4px;">Add as Income category</label>' +
@@ -10950,7 +10959,9 @@ function promptRolloverRemainingToIncome(opts) {
         '</div>' +
         '<div id="ro-pocket-fields" style="display:none;">' +
           '<label style="font-weight:600;font-size:.78rem;display:block;margin-bottom:4px;">Add to Pocket (Savings)</label>' +
-          '<select id="ro-pocket-cat" class="swal2-select" style="margin:0;width:100%;">' + pocketOptions + '</select>' +
+          '<select id="ro-pocket-cat" class="swal2-select" style="margin:0 0 12px;width:100%;">' + pocketOptions + '</select>' +
+          '<label style="font-weight:600;font-size:.78rem;display:block;margin-bottom:4px;">From Account</label>' +
+          '<select id="ro-pocket-account" class="swal2-select" style="margin:0;width:100%;">' + accountOptions + '</select>' +
         '</div>' +
       '</div>',
     showCancelButton: true,
@@ -10994,7 +11005,7 @@ function promptRolloverRemainingToIncome(opts) {
       if (ROLLOVER_DEST_ === 'income') {
         return { dest: 'income', amount: chosenAmount, incomeCategory: document.getElementById('ro-income-cat').value, account: document.getElementById('ro-account').value };
       }
-      return { dest: 'pocket', amount: chosenAmount, pocketCategory: document.getElementById('ro-pocket-cat').value };
+      return { dest: 'pocket', amount: chosenAmount, pocketCategory: document.getElementById('ro-pocket-cat').value, account: document.getElementById('ro-pocket-account').value };
     }
   }).then(function (result) {
     if (!result.isConfirmed) return;
@@ -11018,7 +11029,7 @@ function promptRolloverRemainingToIncome(opts) {
         .withFailureHandler(function (err) { hideLoad(); Swal.fire('Error', err.message, 'error'); })
         .rolloverMonthRemainingToPocket({
           sourceYear: opts.sourceYear, sourceMonth: opts.sourceMonth,
-          pocketCategory: result.value.pocketCategory, amount: chosenAmount
+          pocketCategory: result.value.pocketCategory, amount: chosenAmount, account: result.value.account
         });
       return;
     }
