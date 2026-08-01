@@ -10898,7 +10898,18 @@ function rolloverTargetMonthYear_(sourceYear, sourceMonth) {
    rollover sampai minus parah, padahal secara agregat semua akun bank/cash
    memang cukup — cuma tersebar. Sisa pembulatan (dari pembagian
    proporsional yang tidak bulat) diserap oleh akun dengan porsi terbesar,
-   supaya totalnya PERSIS sama dengan `amount`. */
+   supaya totalnya PERSIS sama dengan jumlah yang benar-benar bisa dibagi.
+   BUG FIX: versi pertama menghitung porsi tiap akun dari `amount` MENTAH
+   (jumlah yang mau di-rollover), bukan dari yang benar-benar tersedia —
+   jadi begitu `amount` melebihi total saldo (mis. "Remaining Budget" lebih
+   besar dari saldo bank/cash sungguhan karena ada pengeluaran di luar
+   Needs/Wants), tiap akun ditampilkan seolah harus nyumbang LEBIH dari
+   saldo aslinya sendiri (mis. BRI ditampilkan Rp1.127.477 padahal saldo
+   BRI sungguhan cuma Rp1.098.868) — membingungkan & kelihatan seperti
+   saldo yang salah. Sekarang porsi selalu dihitung dari
+   min(amount, totalEligible), jadi angka per akun TIDAK PERNAH melebihi
+   saldo asli akun itu; kekurangannya (kalau ada) dilaporkan terpisah lewat
+   `shortBy`, bukan didorongkan ke breakdown-nya. */
 function computeProportionalAccountSplit_(amount) {
   var acc = computeAccountBalances();
   var eligible = acc.cashNames
@@ -10906,20 +10917,22 @@ function computeProportionalAccountSplit_(amount) {
     .filter(function (a) { return a.balance > 0; });
   var totalEligible = eligible.reduce(function (s, a) { return s + a.balance; }, 0);
   if (!eligible.length || totalEligible <= 0 || !(amount > 0)) {
-    return { splits: [], totalEligible: totalEligible, sufficient: false };
+    return { splits: [], totalEligible: totalEligible, sufficient: false, shortBy: Math.max(0, amount - totalEligible) };
   }
+  var sufficient = amount <= totalEligible;
+  var distributable = Math.min(amount, totalEligible); // never split more than what actually exists
   var splits = eligible.map(function (a) {
-    return { account: a.account, amount: Math.round(amount * a.balance / totalEligible) };
+    return { account: a.account, amount: Math.round(distributable * a.balance / totalEligible) };
   });
   var sumSplit = splits.reduce(function (s, x) { return s + x.amount; }, 0);
-  var diff = amount - sumSplit;
+  var diff = distributable - sumSplit;
   if (diff !== 0) {
     var idx = 0, max = -Infinity;
     splits.forEach(function (s, i) { if (s.amount > max) { max = s.amount; idx = i; } });
     splits[idx].amount += diff;
   }
   splits = splits.filter(function (s) { return s.amount > 0; });
-  return { splits: splits, totalEligible: totalEligible, sufficient: amount <= totalEligible };
+  return { splits: splits, totalEligible: totalEligible, sufficient: sufficient, shortBy: sufficient ? 0 : (amount - totalEligible) };
 }
 
 /* Render pratinjau pembagian per akun di dalam dialog Rollover (dipanggil
@@ -10936,8 +10949,10 @@ function renderRolloverAccountBreakdown_(amount) {
   var rows = result.splits.map(function (s) {
     return '<div style="display:flex;justify-content:space-between;font-size:.78rem;padding:3px 0;"><span>' + escapeHtml(s.account) + '</span><b>' + rupiah(s.amount) + '</b></div>';
   }).join('');
+  // BARU: pesan kekurangan sekarang eksplisit ("short by Rp X") supaya
+  // jelas ini soal saldo tidak cukup, bukan angka breakdown yang salah.
   var warn = !result.sufficient
-    ? '<div style="font-size:.72rem;color:#dc2626;margin-top:6px;">Only ' + rupiah(result.totalEligible) + ' available across your accounts — lower the amount above.</div>'
+    ? '<div style="font-size:.72rem;color:#dc2626;margin-top:6px;">Short by ' + rupiah(result.shortBy) + ' — only ' + rupiah(result.totalEligible) + ' available across your accounts. Lower the amount above.</div>'
     : '';
   wrap.innerHTML =
     '<label style="font-weight:600;font-size:.78rem;display:block;margin-bottom:4px;">Taken proportionally from</label>' +
@@ -11077,7 +11092,7 @@ function promptRolloverRemainingToIncome(opts) {
       }
       var split = computeProportionalAccountSplit_(chosenAmount);
       if (!split.splits.length || !split.sufficient) {
-        Swal.showValidationMessage('Only ' + rupiah(split.totalEligible) + ' available across your accounts — lower the amount above.');
+        Swal.showValidationMessage('Short by ' + rupiah(split.shortBy) + ' — only ' + rupiah(split.totalEligible) + ' available across your accounts.');
         return false;
       }
       return { dest: 'pocket', amount: chosenAmount, pocketCategory: document.getElementById('ro-pocket-cat').value, accounts: split.splits };
