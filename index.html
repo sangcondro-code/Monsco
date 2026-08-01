@@ -10714,10 +10714,13 @@ function renderMobileBudExpenseGroup(group, list, monthTx, totalIncome, prevMont
     // ROLLOVER: figur "Remaining" ditampilkan sebagai ANGKA saja di kartu
     // (bukan tombol per kategori) — aksinya digabung jadi 1 tombol di bawah
     // (lihat renderMobileBudRolloverSummary + onRolloverAllBudgetMobile).
-    var leftover = Math.max(0, planned - actual);
-    var remainingRow = (!editing && planned > 0) ?
+    // BUG FIX: sama seperti versi desktop — dulu Math.max(0, ...) menutupi
+    // kategori yang over-budget. Sekarang leftover boleh minus & tampil
+    // merah kalau over-budget, konsisten dengan total di ringkasan Rollover.
+    var leftover = planned - actual;
+    var remainingRow = (!editing && (planned > 0 || actual > 0)) ?
       '<div class="m-bud-card-figures" style="margin-top:2px;margin-bottom:0;">' +
-        '<span>Remaining <b style="color:' + (leftover > 0 ? '#0284c7' : '#94a1b2') + ';">' + rupiah(leftover) + '</b></span>' +
+        '<span>Remaining <b style="color:' + (leftover > 0 ? '#0284c7' : (leftover < 0 ? '#dc2626' : '#94a1b2')) + ';">' + (leftover < 0 ? '-' + rupiah(Math.abs(leftover)) : rupiah(leftover)) + '</b></span>' +
       '</div>' : '';
 
     var plannedRow = '';
@@ -10846,11 +10849,22 @@ function computeBudgetLeftoverItemsForMonth_(group, month) {
     var existing = STATE.data.budget.find(function (b) { return Number(b.Month) === month && b.Group === group && b.Category === item.Name; });
     var planned = existing ? Number(existing.PlannedAmount) : 0;
     if (!existing && item.Name === 'Debt/Installment' && debtInstallmentSuggestion > 0) planned = debtInstallmentSuggestion;
-    if (planned <= 0) return;
     var actual = monthTx.filter(function (t) { return t.Group === group && t.Category === item.Name; })
       .reduce(function (s, t) { return s + Number(t.Amount); }, 0);
-    var leftover = Math.max(0, planned - actual);
-    if (leftover > 0) items.push({ category: item.Name, amount: leftover });
+    // BUG FIX PENTING: dulu `Math.max(0, planned - actual)` + skip kalau
+    // planned<=0 — dua-duanya membuang info MINUS. Akibatnya: (a) kategori
+    // yang over-budget (actual > planned) dianggap nyumbang Rp0 ke total,
+    // padahal seharusnya MENGURANGI total sebesar kelebihannya, dan
+    // (b) belanja di kategori yang planned-nya 0 (belum di-budget sama
+    // sekali) tidak pernah ikut kehitung — padahal uangnya beneran keluar
+    // dari akun. Ini yang bikin "Remaining Budget" total bisa lebih besar
+    // dari saldo bank/cash sungguhan (persis kasus selisih Rp29.000 yang
+    // dilaporkan). Sekarang leftover BOLEH minus, dan tetap diikutkan
+    // (bukan dibuang) ke total — supaya over-budget di satu kategori
+    // benar-benar mengurangi total, senetral kategori lain yang surplus.
+    if (planned <= 0 && actual <= 0) return; // benar-benar tidak ada apa-apa di kategori ini
+    var leftover = planned - actual;
+    items.push({ category: item.Name, amount: leftover });
   });
   return items;
 }
@@ -13064,10 +13078,18 @@ function renderBudExpenseSection(group, list, monthTx, icon, color) {
     // Semua kolom nominal di tabel ini (Planned, Actual, Remaining) rata
     // KANAN — konvensi standar untuk angka, supaya ribuan/digit-nya sejajar
     // secara visual antar baris.
-    var leftover = Math.max(0, planned - actual);
+    // BUG FIX: dulu dipaksa Math.max(0, ...) — kategori yang over-budget
+    // (actual > planned) selalu tampil "—" seolah tidak ada masalah,
+    // padahal realisasinya sudah melebihi rencana. Sekarang leftover boleh
+    // minus & ditampilkan MERAH, supaya kelihatan jelas kategori mana yang
+    // over-budget — dan supaya angka ini konsisten dengan total yang
+    // dipakai di ringkasan Rollover (lihat computeBudgetLeftoverItemsForMonth_).
+    var leftover = planned - actual;
     var remainingCell = leftover > 0 ?
       '<span style="color:#0284c7;">' + rupiah(leftover) + '</span>' :
-      '<span style="font-size:.75rem;color:#cbd5e1;">—</span>';
+      (leftover < 0 ?
+        '<span style="color:#dc2626;font-weight:700;">-' + rupiah(Math.abs(leftover)) + '</span>' :
+        '<span style="font-size:.75rem;color:#cbd5e1;">—</span>');
 
     return '<tr>' +
       '<td class="fw-semibold">' + escapeHtml(item.Name) + '</td>' +
