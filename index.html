@@ -2110,7 +2110,7 @@
             </div>
             <div class="col-md-6">
               <label class="form-label fw-bold small">To Account</label>
-              <select class="form-select" id="at-to" required onchange="updateTransferNoteHint_('at-to','at-note')"></select>
+              <select class="form-select" id="at-to" required onchange="updateTransferNoteHint_('at-to','at-note','at-amount')"></select>
             </div>
             <div class="col-md-6">
               <label class="form-label fw-bold small">Amount (Rp)</label>
@@ -8436,7 +8436,7 @@ function renderMobileBank(acc) {
  *  dikecualikan dari situ), tapi tetap memperbarui saldo per akun (lihat
  *  computeAccountBalances()).
  * ================================================================== */
-function mOpenAccountTransfer(presetTo, presetNotePlaceholder) {
+function mOpenAccountTransfer(presetTo) {
   var body = document.getElementById('m-sheet-body');
   body.innerHTML =
     '<div class="m-form-field">' +
@@ -8449,7 +8449,7 @@ function mOpenAccountTransfer(presetTo, presetNotePlaceholder) {
     '</div>' +
     '<div class="m-form-field">' +
       '<label class="m-form-label">To Account</label>' +
-      '<select class="m-form-select" id="m-at-to" onchange="updateTransferNoteHint_(\'m-at-to\',\'m-at-note\')"></select>' +
+      '<select class="m-form-select" id="m-at-to" onchange="updateTransferNoteHint_(\'m-at-to\',\'m-at-note\',\'m-at-amount\')"></select>' +
     '</div>' +
     '<div class="m-form-field">' +
       '<label class="m-form-label">Amount (Rp)</label>' +
@@ -8458,7 +8458,7 @@ function mOpenAccountTransfer(presetTo, presetNotePlaceholder) {
     '</div>' +
     '<div class="m-form-field">' +
       '<label class="m-form-label">Note <span class="text-muted fw-normal">(optional)</span></label>' +
-      '<input type="text" class="m-form-input" id="m-at-note" placeholder="' + escapeHtml(presetNotePlaceholder || 'e.g. Cash withdrawal') + '">' +
+      '<input type="text" class="m-form-input" id="m-at-note" placeholder="e.g. Cash withdrawal">' +
     '</div>' +
     '<div class="m-sheet-hint mb-2"><i class="fas fa-circle-info me-1"></i>Doesn\'t affect Budgeting or Income/Expense reports — only moves money between your accounts. Tip: to withdraw cash, add a "Cash" account first in Setup, then transfer to it here.</div>' +
     '<div class="m-form-actions" style="border-top:none;padding-top:0;margin-top:8px;">' +
@@ -8469,6 +8469,12 @@ function mOpenAccountTransfer(presetTo, presetNotePlaceholder) {
   populateAccountSelect('m-at-to');
   if (presetTo) document.getElementById('m-at-to').value = presetTo;
   document.getElementById('m-at-date').value = todayISO();
+  // BARU: Amount & Note kartu kredit/paylater sekarang benar-benar terisi
+  // otomatis (bukan cuma placeholder) — lihat catatan panjang di
+  // updateTransferNoteHint_(). Dipanggil di sini supaya berlaku juga saat
+  // "To Account" sudah ke-preset lewat "Pay Bill" (lihat mPayCreditAccount),
+  // karena set .value lewat JS TIDAK memicu event onchange dengan sendirinya.
+  updateTransferNoteHint_('m-at-to', 'm-at-note', 'm-at-amount');
 
   mOpenSheet('Transfer Between Accounts', 'fa-right-left');
 }
@@ -9459,20 +9465,48 @@ function updateAccountCreditHint_(selectId, hintId) {
 }
 
 /* Sama seperti updateAccountCreditHint_, tapi khusus utk form Transfer
- * Between Accounts — dulu placeholder Note ("e.g. Credit Card Payment - X")
- * CUMA berubah kalau masuk lewat tombol "Pay Bill" di kartu (lihat
- * PRESET_TRANSFER_NOTE_PLACEHOLDER_). Kalau user buka Transfer Account
- * manual (bukan lewat Pay Bill) lalu pilih sendiri kartu kredit di "To
- * Account", placeholder-nya tidak ikut berubah — sekarang disambungkan ke
- * onchange "To Account" juga, supaya perilakunya konsisten APAPUN jalan
- * masuknya ke form ini. */
-function updateTransferNoteHint_(toSelectId, noteId) {
+ * Between Accounts.
+ *
+ * REVISI (permintaan user): dulu fungsi ini CUMA mengganti placeholder Note
+ * (teks abu-abu, hilang begitu user mulai mengetik APAPUN, dan TIDAK
+ * pernah benar-benar tersimpan kalau field-nya dibiarkan kosong) — jadi
+ * user tetap harus REPOT ketik ulang manual "Credit Card Payment - X" tiap
+ * kali mau bayar kartu kredit, dan Amount-nya juga tidak pernah otomatis
+ * terisi (harus cek saldo kartu itu dulu di tempat lain, lalu ketik ulang).
+ * Sekarang begitu "To Account" adalah Credit Card/Paylater, Amount &
+ * Note-nya BENAR-BENAR diisi (bukan cuma placeholder): Amount = sisa
+ * tagihan kartu itu SEKARANG (dari computeAccountBalances(), dibulatkan),
+ * Note = "<Type> Payment - <Name>" (mis. "Credit Card Payment - OCTOCard").
+ * Dipanggil dari SATU tempat (onchange "To Account"), dipakai bersama oleh
+ * jalur manual (user pilih sendiri kartu kredit di dropdown) MAUPUN jalur
+ * "Pay Bill" (yang preset "To Account"-nya lalu men-trigger onchange ini
+ * juga — lihat prepareTransferAccountForm() & mOpenAccountTransfer()) —
+ * satu logika, konsisten di kedua jalur & kedua platform (desktop+mobile).
+ *
+ * SENGAJA HANYA mengisi field yang MASIH KOSONG (amountEl kalau nilainya 0,
+ * noteEl kalau isinya '') — supaya tidak menimpa angka/catatan yang sudah
+ * sengaja diketik/diedit user. Kalau "To Account" diganti ke akun BUKAN
+ * kartu kredit, field yang SUDAH terisi (baik oleh user maupun oleh
+ * autofill ini sebelumnya) tidak disentuh/dikosongkan lagi — cukup
+ * placeholder Note-nya yang kembali ke hint umum, supaya tidak ada
+ * perilaku "menghapus tiba-tiba" yang mengejutkan. */
+function updateTransferNoteHint_(toSelectId, noteId, amountId) {
   var toSel = document.getElementById(toSelectId);
   var noteEl = document.getElementById(noteId);
+  var amountEl = amountId ? document.getElementById(amountId) : null;
   if (!toSel || !noteEl) return;
   var a = (STATE.data.setup.account || []).find(function (x) { return x.Name === toSel.value; });
   var isCredit = a && (a.Type === 'Credit Card' || a.Type === 'Paylater');
-  noteEl.placeholder = isCredit ? (a.Type + ' Payment - ' + a.Name) : 'e.g. Cash withdrawal';
+  var creditNote = isCredit ? (a.Type + ' Payment - ' + a.Name) : '';
+  noteEl.placeholder = isCredit ? creditNote : 'e.g. Cash withdrawal';
+
+  if (isCredit && !noteEl.value.trim()) noteEl.value = creditNote;
+
+  if (isCredit && amountEl && !rawNumber(amountEl)) {
+    var acc = computeAccountBalances();
+    var bal = acc.balances[a.Name] || 0;
+    if (bal < 0) amountEl.value = Math.round(Math.abs(bal)).toLocaleString('id-ID');
+  }
 }
 
 function creditAccountList_() {
@@ -9685,14 +9719,15 @@ function mSaveCreditSheet() {
 }
 
 /* "Pay Bill" = jalan pintas ke Transfer Antar Akun yang sudah ada, "To
- * Account" di-prefill (lihat mOpenAccountTransfer). Note SENGAJA TIDAK
- * diisi otomatis (permintaan user) — cuma placeholder-nya diganti jadi
- * contoh yang relevan, user tetap ketik sendiri kalau mau. */
+ * Account" di-prefill (lihat mOpenAccountTransfer). Amount & Note SEKARANG
+ * ikut terisi otomatis juga — lihat updateTransferNoteHint_(), yang
+ * dipanggil dari dalam mOpenAccountTransfer() begitu "To Account"
+ * ke-preset ke kartu ini. */
 function mPayCreditAccount(id) {
   if (mGuardArchiveReadOnly()) return;
   var a = creditAccountList_().find(function (x) { return x.ID === id; });
   if (!a) return;
-  mOpenAccountTransfer(a.Name, a.Type + ' Payment - ' + a.Name);
+  mOpenAccountTransfer(a.Name);
 }
 
 function mCloseCreditAccount(id) {
@@ -11152,11 +11187,14 @@ function promptRolloverRemainingToIncome(opts) {
           applySavingsBalance(res.savingsCategory, res.savingsBalance);
           var inYearP = mAcceptTxYearOrWarn_(res.targetYear);
           // BUG FIX: tanpa ini, banner "Rolled over" baru muncul setelah
-          // reload, bukan langsung. Sekarang bisa lebih dari satu baris
-          // (satu per akun yang kena porsi proporsional), jadi push semuanya.
+          // reload, bukan langsung. Bisa lebih dari satu baris (satu per
+          // akun yang kena porsi proporsional) — sekarang baris TX_
+          // sungguhan (Group='Savings'), jadi masuk STATE.data.transactions,
+          // BUKAN lagi STATE.data.pocket (lihat rolloverMonthRemainingToPocket
+          // di Kode.gs untuk alasan lengkapnya).
           if (inYearP && res.records && res.records.length) {
-            STATE.data.pocket = STATE.data.pocket || [];
-            res.records.forEach(function (r) { STATE.data.pocket.push(r); });
+            STATE.data.transactions = STATE.data.transactions || [];
+            res.records.forEach(function (r) { STATE.data.transactions.push(r); });
           }
           Swal.fire({ icon: 'success', title: 'Rolled over!', text: rupiah(chosenAmount) + ' added to ' + escapeHtml(result.value.pocketCategory) + ' in ' + targetLabel + '.', timer: 2600, showConfirmButton: false });
           if (typeof renderGeneralSavings === 'function') renderGeneralSavings();
@@ -12002,9 +12040,14 @@ function prepareTransferAccountForm() {
     document.getElementById('at-to').value = PRESET_TRANSFER_TO_;
     PRESET_TRANSFER_TO_ = null;
   }
-  var noteEl = document.getElementById('at-note');
-  noteEl.placeholder = PRESET_TRANSFER_NOTE_PLACEHOLDER_ || 'e.g. Cash withdrawal';
-  PRESET_TRANSFER_NOTE_PLACEHOLDER_ = null;
+  // BARU: dulu di sini cuma set placeholder Note dari
+  // PRESET_TRANSFER_NOTE_PLACEHOLDER_ (teks abu-abu, tidak pernah benar-benar
+  // tersimpan kalau dibiarkan). Sekarang panggil updateTransferNoteHint_
+  // yang SAMA dipakai oleh onchange "To Account" — kalau akun yang
+  // ke-preset (atau default terpilih) adalah Credit Card/Paylater, Amount &
+  // Note-nya BENAR-BENAR terisi otomatis (lihat catatan panjang di fungsi
+  // itu), tidak perlu mekanisme preset terpisah lagi.
+  updateTransferNoteHint_('at-to', 'at-note', 'at-amount');
 }
 
 function resetTransferAccountForm() {
@@ -12013,6 +12056,7 @@ function resetTransferAccountForm() {
   document.getElementById('at-date').value = todayISO();
   populateAccountSelect('at-from');
   populateAccountSelect('at-to');
+  updateTransferNoteHint_('at-to', 'at-note', 'at-amount');
 }
 
 function saveAccountTransfer(e) {
@@ -12872,33 +12916,41 @@ function saveYearlyPlannedMonth_(month) {
    in <Month> <Year>", tidak ada rincian per kategori yang perlu dipilih. */
 /* Cek apakah rollover utk bulan (year, month) TERTENTU sudah pernah
    dilakukan — dicek dari data yang SUDAH DIMUAT di STATE (bukan request
-   baru ke server), dengan mencari transaksi Income bertag 'Budget Rollover'
-   atau deposit Pocket dengan Note penanda yang cocok (format SAMA PERSIS
-   dengan rolloverNoteMarker_() di Kode.gs). HANYA akurat kalau bulan
-   tujuannya masih di tahun yang sama dengan STATE.year (data lintas tahun
-   tidak dimuat di frontend) — sama seperti batasan "Last month" hint di
-   Budgeting; untuk Desember->Januari tahun baru, banner ini tidak akan
-   muncul sampai user membuka tahun berikutnya, tapi pencegahan rollover
-   dobel di backend (isMonthRolloverAlreadyDone_) tetap akurat lintas tahun. */
+   baru ke server), dengan mencari transaksi Income ATAU Savings bertag
+   'Budget Rollover' dengan Note penanda yang cocok (format SAMA PERSIS
+   dengan rolloverNoteMarker_() di Kode.gs — kedua jalur SEKARANG sama-sama
+   Transaction beneran di TX_, tidak ada lagi jalur POCKET_ terpisah). HANYA
+   akurat kalau bulan tujuannya masih di tahun yang sama dengan STATE.year
+   (data lintas tahun tidak dimuat di frontend) — sama seperti batasan
+   "Last month" hint di Budgeting; untuk Desember->Januari tahun baru,
+   banner ini tidak akan muncul sampai user membuka tahun berikutnya, tapi
+   pencegahan rollover dobel di backend (isMonthRolloverAlreadyDone_) tetap
+   akurat lintas tahun. */
 function getRolloverStatusForMonth_(sourceYear, sourceMonth) {
   var target = rolloverTargetMonthYear_(sourceYear, sourceMonth);
   if (target.targetYear !== Number(STATE.year)) return null;
-  var marker = 'Remaining Budget in ' + MONTH_NAMES[sourceMonth - 1] + ' ' + sourceYear;
+  // BARU: marker sekarang menyertakan bulan tujuan juga (lihat
+  // rolloverNoteMarker_ di Kode.gs) — dua fungsi ini HARUS selalu
+  // menghasilkan string yang identik, karena dicocokkan persis (===) ke
+  // kolom Note transaksi.
+  var marker = 'Remaining Budget in ' + MONTH_NAMES[sourceMonth - 1] + ' ' + sourceYear +
+    ' \u2192 ' + MONTH_NAMES[target.targetMonth - 1] + ' ' + target.targetYear;
   var targetLabel = MONTH_NAMES[target.targetMonth - 1] + ' ' + target.targetYear;
 
-  var dest = null, rolledAmount = null, category = null;
-  var incomeTx = (STATE.data.transactions || []).find(function (t) {
-    return t.Group === 'Income' && t.Tag === 'Budget Rollover' && String(t.Note) === marker;
+  // BARU: jalur Pocket sekarang JUGA menulis TX_ (Group='Savings'), bukan
+  // lagi POCKET_ — jadi kedua jalur dicek dari sumber yang sama (TX_).
+  // BUG FIX sekalian: dulu pakai .find() (cuma ambil SATU baris) — padahal
+  // rollover ke Pocket bisa jadi BEBERAPA baris (satu per akun dari split
+  // proporsional). .find() bikin rolledAmount cuma keambil porsi SATU akun
+  // saja, bukan totalnya. Sekarang pakai .filter() + jumlahkan semua baris
+  // yang match markernya.
+  var matches = (STATE.data.transactions || []).filter(function (t) {
+    return (t.Group === 'Income' || t.Group === 'Savings') && t.Tag === 'Budget Rollover' && String(t.Note) === marker;
   });
-  if (incomeTx) { dest = 'income'; rolledAmount = Number(incomeTx.Amount); category = incomeTx.Category; }
-
-  if (!dest) {
-    var pocketEntry = (STATE.data.pocket || []).find(function (p) {
-      return p.Type === 'Deposit' && String(p.Note) === marker;
-    });
-    if (pocketEntry) { dest = 'pocket'; rolledAmount = Number(pocketEntry.Amount); category = pocketEntry.Category; }
-  }
-  if (!dest) return null;
+  if (!matches.length) return null;
+  var dest = matches[0].Group === 'Income' ? 'income' : 'pocket';
+  var category = matches[0].Category;
+  var rolledAmount = matches.reduce(function (s, t) { return s + Number(t.Amount); }, 0);
 
   // BARU: hitung ULANG Needs/Wants remaining bulan SUMBER (bukan bulan yang
   // sedang dibuka di Budgeting saat ini — lihat computeBudgetLeftoverItemsForMonth_)
@@ -13552,7 +13604,6 @@ function renderDebt() {
  *  renderMobileCredit(), pola sama seperti DEBT_EDIT_ID).
  * ================================================================== */
 var PRESET_TRANSFER_TO_ = null;
-var PRESET_TRANSFER_NOTE_PLACEHOLDER_ = null;
 
 function renderCredit(acc) {
   var wrap = document.getElementById('credit-cards-wrap');
@@ -13720,14 +13771,15 @@ function saveCreditModal() {
 
 /* "Pay Bill" = jalan pintas ke halaman Transfer Account yang sudah ada,
  * "To Account" di-prefill lewat PRESET_TRANSFER_TO_ (dibaca & dibersihkan
- * sekali oleh prepareTransferAccountForm()). Note SENGAJA TIDAK diisi
- * otomatis (permintaan user) — cuma placeholder-nya diganti. */
+ * sekali oleh prepareTransferAccountForm()). Amount & Note SEKARANG ikut
+ * terisi otomatis juga — lihat updateTransferNoteHint_(), yang dipanggil
+ * dari prepareTransferAccountForm() begitu "To Account" ke-preset ke kartu
+ * ini, jadi tidak perlu preset terpisah lagi di sini. */
 function payCreditAccountDesktop(id) {
   if (mGuardArchiveReadOnly()) return;
   var a = creditAccountList_().find(function (x) { return x.ID === id; });
   if (!a) return;
   PRESET_TRANSFER_TO_ = a.Name;
-  PRESET_TRANSFER_NOTE_PLACEHOLDER_ = a.Type + ' Payment - ' + a.Name;
   go('transfer-account');
 }
 
