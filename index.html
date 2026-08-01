@@ -11208,8 +11208,17 @@ function promptRolloverRemainingToIncome(opts) {
       .withSuccessHandler(function (res) {
         hideLoad();
         if (!res.success) { Swal.fire('Error', res.message, 'error'); return; }
-        var inYear = mAcceptTxYearOrWarn_(res.targetYear);
-        if (inYear) STATE.data.transactions.push(res.record);
+        // BARU: rollover ke Income sekarang double-entry — baris "penutup"
+        // di bulan SUMBER (res.closingRecord, tahun res.sourceYear) DAN
+        // baris Income beneran di bulan TUJUAN (res.record, tahun
+        // res.targetYear). Dua tahun ini BISA beda (rollover Desember ->
+        // Januari tahun baru), jadi dicek terpisah, masing-masing cuma
+        // masuk STATE.data.transactions kalau tahunnya cocok dengan yang
+        // sedang dibuka sekarang.
+        var inSourceYear = mAcceptTxYearOrWarn_(res.sourceYear);
+        if (inSourceYear && res.closingRecord) STATE.data.transactions.push(res.closingRecord);
+        var inTargetYear = mAcceptTxYearOrWarn_(res.targetYear);
+        if (inTargetYear && res.record) STATE.data.transactions.push(res.record);
         Swal.fire({ icon: 'success', title: 'Rolled over!', text: rupiah(chosenAmount) + ' added as Income in ' + targetLabel + '.', timer: 2600, showConfirmButton: false });
         if (typeof opts.onDone === 'function') opts.onDone();
       })
@@ -12915,17 +12924,28 @@ function saveYearlyPlannedMonth_(month) {
    dilakukan — dicek dari data yang SUDAH DIMUAT di STATE (bukan request
    baru ke server), dengan mencari transaksi Income ATAU Savings bertag
    'Budget Rollover' dengan Note penanda yang cocok (format SAMA PERSIS
-   dengan rolloverNoteMarker_() di Kode.gs — kedua jalur SEKARANG sama-sama
-   Transaction beneran di TX_, tidak ada lagi jalur POCKET_ terpisah). HANYA
-   akurat kalau bulan tujuannya masih di tahun yang sama dengan STATE.year
-   (data lintas tahun tidak dimuat di frontend) — sama seperti batasan
-   "Last month" hint di Budgeting; untuk Desember->Januari tahun baru,
-   banner ini tidak akan muncul sampai user membuka tahun berikutnya, tapi
-   pencegahan rollover dobel di backend (isMonthRolloverAlreadyDone_) tetap
-   akurat lintas tahun. */
+   dengan rolloverNoteMarker_() di Kode.gs). Jalur Pocket mencatat baris di
+   tahun SUMBER, jalur Income di tahun TUJUAN (lihat catatan panjang di
+   rolloverSourceMonthEndDate_/rolloverTargetMonthStartDate_ di Kode.gs) —
+   HANYA akurat kalau STATE.year sedang menampilkan salah satu dari dua
+   tahun itu (data lintas tahun tidak dimuat di frontend) — sama seperti
+   batasan "Last month" hint di Budgeting; untuk Desember->Januari tahun
+   baru dengan jalur Income, banner ini tidak akan muncul sampai user
+   membuka tahun berikutnya, tapi pencegahan rollover dobel di backend
+   (isMonthRolloverAlreadyDone_) tetap akurat lintas tahun. */
 function getRolloverStatusForMonth_(sourceYear, sourceMonth) {
   var target = rolloverTargetMonthYear_(sourceYear, sourceMonth);
-  if (target.targetYear !== Number(STATE.year)) return null;
+  // BARU: jalur Pocket sekarang menulis ke tahun SUMBER, jalur Income tetap
+  // ke tahun TUJUAN (lihat rolloverSourceMonthEndDate_ &
+  // rolloverTargetMonthStartDate_ di Kode.gs) — jadi baris yang relevan
+  // bisa ada di SALAH SATU dari dua tahun itu, tergantung jalur mana yang
+  // dipakai. STATE.data.transactions cuma berisi SATU tahun yang sedang
+  // dibuka (STATE.year), jadi kalau tahun itu bukan salah satu dari
+  // keduanya, kita tidak akan pernah nemu apa pun di sini — return null
+  // (sama seperti batasan lama, cuma sekarang menoleransi 2 kemungkinan
+  // tahun, bukan cuma 1).
+  var loadedYear = Number(STATE.year);
+  if (loadedYear !== sourceYear && loadedYear !== target.targetYear) return null;
   // BARU: marker sekarang menyertakan bulan tujuan juga (lihat
   // rolloverNoteMarker_ di Kode.gs) — dua fungsi ini HARUS selalu
   // menghasilkan string yang identik, karena dicocokkan persis (===) ke
@@ -12945,9 +12965,29 @@ function getRolloverStatusForMonth_(sourceYear, sourceMonth) {
     return (t.Group === 'Income' || t.Group === 'Savings') && t.Tag === 'Budget Rollover' && String(t.Note) === marker;
   });
   if (!matches.length) return null;
-  var dest = matches[0].Group === 'Income' ? 'income' : 'pocket';
-  var category = matches[0].Category;
-  var rolledAmount = matches.reduce(function (s, t) { return s + Number(t.Amount); }, 0);
+
+  // BARU: jalur Income sekarang JUGA menulis baris "penutup" Group='Savings'
+  // di bulan sumber (lihat rolloverMonthRemainingToIncome & catatan
+  // panjang di sana) — kategorinya sentinel ROLLOVER_CLOSING_CATEGORY_
+  // ('Budget Rollover'), BUKAN kategori Pocket sungguhan. Kalau sourceYear
+  // & targetYear kebetulan sama (11 dari 12 bulan), `matches` di atas bisa
+  // berisi KEDUA baris (penutup + Income) sekaligus — jangan sampai
+  // ke-jumlah dobel atau salah dikira jalur Pocket. Pisahkan eksplisit:
+  // ada baris Group='Income'? -> pasti jalur Income, rolledAmount HANYA
+  // dari baris Income-nya (bukan ikut baris penutupnya). Kalau tidak ada
+  // (baik karena memang jalur Pocket, ATAU karena baris Income-nya ada di
+  // tahun lain yang tidak sedang dimuat), baru dianggap jalur Pocket.
+  var incomeMatches = matches.filter(function (t) { return t.Group === 'Income'; });
+  var dest, category, rolledAmount;
+  if (incomeMatches.length) {
+    dest = 'income';
+    category = incomeMatches[0].Category;
+    rolledAmount = incomeMatches.reduce(function (s, t) { return s + Number(t.Amount); }, 0);
+  } else {
+    dest = 'pocket';
+    category = matches[0].Category;
+    rolledAmount = matches.reduce(function (s, t) { return s + Number(t.Amount); }, 0);
+  }
 
   // BARU: hitung ULANG Needs/Wants remaining bulan SUMBER (bukan bulan yang
   // sedang dibuka di Budgeting saat ini — lihat computeBudgetLeftoverItemsForMonth_)
@@ -16153,8 +16193,19 @@ function applyLinkedTransactionUpdate(linkedTx) {
 }
 
 function removeLinkedTransaction(linkedTx) {
-  if (!linkedTx || !linkedTx.id) return;
-  STATE.data.transactions = (STATE.data.transactions || []).filter(function (t) { return t.ID !== linkedTx.id; });
+  if (!linkedTx) return;
+  // BUG FIX: dulu cuma menghapus SATU baris pasangan (linkedTx.id) — cukup
+  // utk Transfer Antar Akun (selalu tepat 2 baris), tapi TIDAK cukup untuk
+  // Rollover ke Pocket yang di-split ke beberapa akun (bisa lebih dari 1
+  // baris terhubung sekaligus — lihat catatan panjang di
+  // deleteTransaction()/deleteTransactionsBulk() di Kode.gs). Sekarang pakai
+  // `linkedTx.ids` (array) kalau ada, dengan fallback ke `.id` tunggal
+  // supaya tetap kompatibel dengan respons lama.
+  var ids = Array.isArray(linkedTx.ids) ? linkedTx.ids : (linkedTx.id ? [linkedTx.id] : []);
+  if (!ids.length) return;
+  var idSet = {};
+  ids.forEach(function (id) { idSet[id] = true; });
+  STATE.data.transactions = (STATE.data.transactions || []).filter(function (t) { return !idSet[t.ID]; });
 }
 
 /* Kebalikan dari applyLinkedTransactionUpdate(): dipakai saat mengedit
