@@ -6087,6 +6087,32 @@ function filterBudgetByMonth(list, month) {
   return list.filter(function (b) { return Number(b.Month) === Number(month); });
 }
 
+/* BUG FIX PENTING: "Net Balance" di Home ("Your real spending power, right
+   now") dulu dihitung HANYA dari TX_ (income - totalSpending - savingsActual
+   [Group='Savings' di TX_]) — sama sekali TIDAK melihat POCKET_. Padahal ada
+   DUA jalur uang bisa masuk ke Pocket/Savings di app ini:
+   1) Transaksi Group='Savings' beneran di TX_ (lewat Add Spending pilih
+      grup Savings) — sudah lengkap terhitung di `savingsActual`.
+   2) Deposit/Withdraw langsung ke POCKET_ TANPA baris TX_ sama sekali —
+      dipakai oleh "Add Saving" mandiri (Wealth) & "Rollover to Pocket"
+      (Budgeting). computeAccountBalances() (Accounts) SUDAH benar
+      mengurangi saldo akun utk jalur ini, tapi Net Balance di Home tidak
+      ikut, jadi begitu ada Deposit lewat jalur 2, saldo Accounts turun tapi
+      Net Balance di Home diam saja — dua angka jadi tidak konsisten
+      (persis laporan bug ini). Fungsi ini menghitung net efek jalur 2 ke
+      akun bank/cash utk SATU bulan tertentu, dipakai bareng oleh
+      renderDashboard() & renderMobileHome() supaya Net Balance ikut turun
+      saat ada Rollover/Add Saving di bulan itu. Type='Transfer' (Pocket ->
+      Income) sengaja dilewati — efeknya ke saldo sudah lengkap lewat baris
+      Income TX_ pasangannya (lihat catatan sama di computeAccountBalances).
+      TransferOut/TransferIn (Pocket <-> Pocket) otomatis terlewati juga
+      karena Account-nya kosong untuk jenis itu (tidak menyentuh bank/cash). */
+function computePocketAccountNetForMonth_(month) {
+  return (STATE.data.pocket || [])
+    .filter(function (p) { return Number(p.Month) === Number(month) && p.Account && p.Type !== 'Transfer'; })
+    .reduce(function (s, p) { var sign = p.Type === 'Withdraw' ? 1 : -1; return s + sign * (Number(p.Amount) || 0); }, 0);
+}
+
 function renderDashboard() {
   var monthEl = document.getElementById('dash-month');
   if (monthEl) monthEl.value = STATE.month;
@@ -6102,7 +6128,7 @@ function renderDashboard() {
   var needsPlanned = budgetRows.filter(function (b) { return b.Group === 'Needs'; }).reduce(function (s, b) { return s + Number(b.PlannedAmount); }, 0);
   var wantsPlanned = budgetRows.filter(function (b) { return b.Group === 'Wants'; }).reduce(function (s, b) { return s + Number(b.PlannedAmount); }, 0);
   var budgetedExpenses = needsPlanned + wantsPlanned;
-  var balance = income - totalSpending - savingsActual;
+  var balance = income - totalSpending - savingsActual + computePocketAccountNetForMonth_(STATE.month);
 
   document.getElementById('d-balance').textContent = rupiah(balance);
   document.getElementById('d-income').textContent = rupiah(income);
@@ -6765,7 +6791,7 @@ function renderMobileHome() {
   var wantsActual = sumByGroup(txs, 'Wants');
   var savingsActual = sumByGroup(txs, 'Savings');
   var totalSpending = needsActual + wantsActual;
-  var balance = income - totalSpending - savingsActual;
+  var balance = income - totalSpending - savingsActual + computePocketAccountNetForMonth_(STATE.month);
 
   var balEl = document.getElementById('m-d-balance');
   if (balEl) balEl.textContent = rupiah(balance);
