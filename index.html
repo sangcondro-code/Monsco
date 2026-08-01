@@ -258,10 +258,6 @@
     .stat-card { display:flex; align-items:center; gap:1rem; padding:1.25rem; border-radius:.75rem; background:white; border:1px solid #e5e7eb; min-width:0; overflow:hidden; }
     .stat-card .stat-text { min-width:0; flex:1; overflow:hidden; }
     .stat-card .stat-text .fw-bold { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:1.05rem; }
-    .mom-delta { font-size:.7rem; font-weight:700; margin-top:2px; display:flex; align-items:center; gap:3px; }
-    .mom-delta.bad { color:#dc2626; }
-    .mom-delta.good { color:#16a34a; }
-    .mom-delta.flat { color:#94a3b8; }
     @media(max-width:576px){ .stat-card { padding:.9rem; gap:.75rem; } .stat-icon { width:40px; height:40px; font-size:1.1rem; flex-shrink:0; } .stat-card .stat-text .fw-bold { font-size:.9rem; } }
     .stat-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; flex-shrink:0; }
     .page-title { font-size:1.25rem; font-weight:700; margin-bottom:0; color:#111; }
@@ -1952,7 +1948,7 @@
       <div class="row g-3 mb-4">
         <div class="col-12 col-sm-6 col-lg-3"><div class="stat-card" style="border-left:4px solid #166534;">
           <div class="stat-icon" style="background:#dcfce7;color:#166534;"><i class="fas fa-arrow-down"></i></div>
-          <div class="stat-text"><div class="text-muted small">Total Income</div><div class="fw-bold fs-6" id="d-income">Rp 0</div><div class="mom-delta" id="d-income-mom"></div></div>
+          <div class="stat-text"><div class="text-muted small">Total Income</div><div class="fw-bold fs-6" id="d-income">Rp 0</div></div>
         </div></div>
         <div class="col-12 col-sm-6 col-lg-3"><div class="stat-card" style="border-left:4px solid #f59e0b;">
           <div class="stat-icon" style="background:#fef3c7;color:#92400e;"><i class="fas fa-clipboard-list"></i></div>
@@ -1960,11 +1956,11 @@
         </div></div>
         <div class="col-12 col-sm-6 col-lg-3"><div class="stat-card" style="border-left:4px solid #dc2626;">
           <div class="stat-icon" style="background:#fee2e2;color:#dc2626;"><i class="fas fa-arrow-up"></i></div>
-          <div class="stat-text"><div class="text-muted small">Total Spending</div><div class="fw-bold fs-6" id="d-spending">Rp 0</div><div class="mom-delta" id="d-spending-mom"></div></div>
+          <div class="stat-text"><div class="text-muted small">Total Spending</div><div class="fw-bold fs-6" id="d-spending">Rp 0</div></div>
         </div></div>
         <div class="col-12 col-sm-6 col-lg-3"><div class="stat-card" style="border-left:4px solid #0284c7;">
           <div class="stat-icon" style="background:#e0f2fe;color:#0284c7;"><i class="fas fa-piggy-bank"></i></div>
-          <div class="stat-text"><div class="text-muted small">Monthly Savings</div><div class="fw-bold fs-6" id="d-savings">Rp 0</div><div class="mom-delta" id="d-savings-mom"></div></div>
+          <div class="stat-text"><div class="text-muted small">Monthly Savings</div><div class="fw-bold fs-6" id="d-savings">Rp 0</div></div>
         </div></div>
       </div>
 
@@ -3841,7 +3837,6 @@
           <div class="m-balance-label">Net Balance<span class="m-balance-sub">Your net balance this month</span></div>
           <div class="m-balance-amount" id="m-d-balance">Rp 0</div>
           <div class="m-balance-spending-row"><span>Total Spending</span><b id="m-d-spending">Rp 0</b></div>
-          <div class="mom-delta" id="m-d-spending-mom" style="justify-content:flex-end;"></div>
         </div>
 
         <div class="m-quick-menu-card">
@@ -6041,21 +6036,18 @@ function syncSecondaryMonthLabels_() {
   if (mBudSelect) mBudSelect.value = BUD_MONTH;
 }
 
-/* Every time the person switches to a different mobile tab, the month
-   filter snaps back to the real current month — it's a per-visit filter,
-   not something that should silently carry over (e.g. leaving it on
-   "March" after checking Budgeting, then wondering why Home looks empty). */
-function resetMonthFilterToCurrent_() {
-  var nowMonth = new Date().getMonth() + 1;
-  STATE.month = nowMonth;
-  BUD_MONTH = nowMonth;
+/* Bulan yang dipilih di filter (Home/Budgeting/Analytics — semuanya satu
+   filter global, lihat onMonthFilterChange()) sengaja TIDAK direset saat
+   pindah tab di mobile — sekali dipilih, bulan itu dipakai di semua tab
+   sampai user sendiri yang mengganti lagi. Filter hanya kembali ke bulan
+   kalender berjalan saat app benar-benar dibuka ulang (STATE.month & BUD_MONTH
+   diinisialisasi ke bulan saat ini di deklarasi variabelnya, dieksekusi ulang
+   setiap kali halaman dimuat). Yang tetap dibersihkan tiap pindah tab hanya
+   mode edit Budgeting (Save/Cancel massal) supaya tidak "nyangkut" terbawa
+   ke tab lain. */
+function cancelPendingBudgetEditOnTabSwitch_() {
   BUD_EDIT.Needs = false;
   BUD_EDIT.Wants = false;
-  ['dash-month', 'm-dash-month', 'm-an-month', 'm-bud-month-select'].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el) el.value = nowMonth;
-  });
-  syncSecondaryMonthLabels_();
 }
 
 function onMonthFilterChange(sel) {
@@ -6118,26 +6110,6 @@ function renderDashboard() {
   document.getElementById('d-spending').textContent = rupiah(totalSpending);
   document.getElementById('d-savings').textContent = rupiah(savingsActual);
 
-  // Perbandingan bulan-ke-bulan (Insight & Pelaporan) — HANYA dihitung kalau
-  // bulan sebelumnya masih di tahun yang sama (data lintas tahun tidak
-  // dimuat di STATE), sama seperti batasan "Last month" hint di Budgeting.
-  // Untuk Januari, badge ini sengaja dikosongkan (bukan salah tampil "0%"
-  // atau membandingkan ke Desember tahun yang sama yang belum terjadi).
-  var prevMonthForDelta = STATE.month > 1 ? STATE.month - 1 : null;
-  if (prevMonthForDelta) {
-    var prevTxs = filterTxByMonth(STATE.data.transactions, prevMonthForDelta);
-    var prevIncome = sumByGroup(prevTxs, 'Income');
-    var prevSpending = sumByGroup(prevTxs, 'Needs') + sumByGroup(prevTxs, 'Wants');
-    var prevSavings = sumByGroup(prevTxs, 'Savings');
-    renderMomDelta_('d-income-mom', income, prevIncome, true);
-    renderMomDelta_('d-spending-mom', totalSpending, prevSpending, false);
-    renderMomDelta_('d-savings-mom', savingsActual, prevSavings, true);
-  } else {
-    ['d-income-mom', 'd-spending-mom', 'd-savings-mom'].forEach(function (id) {
-      var el = document.getElementById(id); if (el) el.innerHTML = '';
-    });
-  }
-
   renderDashExpensesList(txs, budgetRows);
   renderDashBreakdownChart(txs);
   renderDashBudgetAllocationChart(income, needsPlanned, wantsPlanned, savingsActual);
@@ -6145,29 +6117,6 @@ function renderDashboard() {
   renderDashIncomeExpenseChart();
   renderDashBankList();
   renderInsights('dash-insights-wrap');
-}
-
-/* Badge kecil "X% vs last month" di kartu statistik Dashboard — pelengkap
-   VISUAL yang SELALU tampil (beda dari insight naratif di computeInsights()
-   yang cuma muncul kalau lewat ambang tertentu, mis. >=5%). higherIsGood
-   menentukan WARNA (naik belum tentu berarti "bagus" — utk Spending, naik
-   itu bad), sementara arah panah selalu mengikuti arah perubahan yang
-   sebenarnya. Dipakai bareng oleh renderDashboard() (web) &
-   renderMobileHome() (mobile). */
-function renderMomDelta_(elId, current, previous, higherIsGood) {
-  var el = document.getElementById(elId);
-  if (!el) return;
-  if (!(previous > 0)) { el.innerHTML = ''; return; } // tidak ada basis pembanding yang valid bulan lalu
-  var pct = Math.round(((current - previous) / previous) * 100);
-  if (Math.abs(pct) < 1) {
-    el.className = 'mom-delta flat';
-    el.innerHTML = '<i class="fas fa-minus"></i> Same as last month';
-    return;
-  }
-  var isUp = pct > 0;
-  var isGood = higherIsGood ? isUp : !isUp;
-  el.className = 'mom-delta ' + (isGood ? 'good' : 'bad');
-  el.innerHTML = '<i class="fas ' + (isUp ? 'fa-arrow-up' : 'fa-arrow-down') + '"></i> ' + Math.abs(pct) + '% vs last month';
 }
 
 function renderDashExpensesList(txs, budgetRows) {
@@ -6821,17 +6770,6 @@ function renderMobileHome() {
   var balEl = document.getElementById('m-d-balance');
   if (balEl) balEl.textContent = rupiah(balance);
   setText('m-d-spending', rupiah(totalSpending));
-
-  // Perbandingan bulan-ke-bulan (Insight & Pelaporan) — lihat catatan
-  // panjang di renderDashboard() (versi desktop) untuk batasan Januari.
-  var prevMonthForDelta = STATE.month > 1 ? STATE.month - 1 : null;
-  if (prevMonthForDelta) {
-    var prevTxs = filterTxByMonth(STATE.data.transactions, prevMonthForDelta);
-    var prevSpending = sumByGroup(prevTxs, 'Needs') + sumByGroup(prevTxs, 'Wants');
-    renderMomDelta_('m-d-spending-mom', totalSpending, prevSpending, false);
-  } else {
-    var el = document.getElementById('m-d-spending-mom'); if (el) el.innerHTML = '';
-  }
 
   renderMobileExpensesList(txs, budgetRows);
 }
@@ -9788,7 +9726,7 @@ function mReopenCreditAccount(id) {
 
 function mGo(view) {
   if (view !== M_CURRENT_VIEW) {
-    resetMonthFilterToCurrent_();
+    cancelPendingBudgetEditOnTabSwitch_();
     M_CURRENT_VIEW = view;
   }
   M_VIEWS.forEach(function (v) {
