@@ -4322,9 +4322,11 @@
     <!-- TRANSACTIONS (mobile) -->
     <div id="m-view-transactions" class="m-view">
 
-      <!-- Header (month follows the single global filter on Home) -->
+      <!-- Header (month follows the single global filter on Home — now an
+           actual interactive <select> here too, same pattern as Budgeting's
+           m-bud-month-select, not just a read-only label like before). -->
       <div class="m-tx-header">
-        <div class="m-tx-title">Transactions <span id="m-tx-month-label" class="m-month-inline">(July)</span></div>
+        <div class="m-tx-title">Transactions</div>
         <div class="m-tx-controls">
           <select class="m-tx-select" id="m-tx-group" onchange="renderMobileTransactions()">
             <option value="">All</option>
@@ -4334,6 +4336,7 @@
             <option value="Savings">Savings</option>
             <option value="Transfer">Transfer</option>
           </select>
+          <select id="m-tx-month" class="m-month-select" onchange="onMonthFilterChange(this)"></select>
         </div>
       </div>
 
@@ -4833,6 +4836,28 @@ function updateBudPct(el) {
 }
 function sumByGroup(list, group) {
   return list.filter(function (t) { return t.Group === group; }).reduce(function (s, t) { return s + Number(t.Amount); }, 0);
+}
+
+/* BUG FIX PENTING: dipakai KHUSUS untuk rumus "Allocated" di Budgeting
+ * (bud-total-allocated / m-bud-allocated / halaman Yearly) — BUKAN untuk
+ * total "X this month" yang ditampilkan di header section Savings
+ * (renderBudFlowSection, itu tetap pakai sumByGroup biasa, memang harus
+ * menghitung SEMUA uang yang masuk Savings termasuk rollover).
+ *
+ * Rumus Allocated = Planned Needs/Wants + Savings Actual. Transaksi
+ * rollover (Tag='Budget Rollover', baik jalur To Pocket maupun baris
+ * "penutup" jalur To Income — lihat rolloverMonthRemainingToPocket/Income
+ * di Kode.gs) BUKAN uang baru yang "diklaim" dari income bulan ini — itu
+ * REDISTRIBUSI dari uang yang SUDAH terhitung lewat angka Planned
+ * Needs/Wants kategori sumbernya (uang yang direncanakan tapi tidak
+ * terpakai, lalu dipindah ke Savings). Kalau ikut dijumlahkan lagi di sini,
+ * uang yang SAMA kehitung DUA KALI — persis sebesar jumlah rollover itu,
+ * bikin Allocated menggelembung & Unallocated jadi minus (persis laporan
+ * bug ini: Unallocated -Rp1.113.868, pas dengan jumlah rollover-nya). */
+function sumSavingsActualExcludingRollover_(txList) {
+  return (txList || [])
+    .filter(function (t) { return t.Group === 'Savings' && t.Tag !== 'Budget Rollover'; })
+    .reduce(function (s, t) { return s + Number(t.Amount); }, 0);
 }
 
 /* ---------------------------------------------------------------- */
@@ -6009,7 +6034,7 @@ function monthLabelParen_(m) {
 function populateMonthSelects() {
   var opts = '<option value="0">All Months</option>';
   MONTH_NAMES.forEach(function (name, i) { opts += '<option value="' + (i + 1) + '">' + name + '</option>'; });
-  ['dash-month', 'm-dash-month', 'm-an-month', 'm-bud-month-select'].forEach(function (id) {
+  ['dash-month', 'm-dash-month', 'm-an-month', 'm-bud-month-select', 'm-tx-month'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) { el.innerHTML = opts; el.value = STATE.month; }
   });
@@ -6025,12 +6050,12 @@ function populateMonthSelects() {
 function syncSecondaryMonthLabels_() {
   var trxLabel = document.getElementById('trx-month-label');
   if (trxLabel) trxLabel.textContent = monthLabelParen_(STATE.month);
-  var txMonthLabel = document.getElementById('m-tx-month-label');
-  if (txMonthLabel) txMonthLabel.textContent = monthLabelParen_(STATE.month);
   var budLabel = document.getElementById('bud-month');
   if (budLabel) budLabel.textContent = monthLabelParen_(BUD_MONTH);
   var mBudSelect = document.getElementById('m-bud-month-select');
   if (mBudSelect) mBudSelect.value = BUD_MONTH;
+  var mTxSelect = document.getElementById('m-tx-month');
+  if (mTxSelect) mTxSelect.value = STATE.month;
 }
 
 /* Bulan yang dipilih di filter (Home/Budgeting/Analytics — semuanya satu
@@ -6049,7 +6074,7 @@ function cancelPendingBudgetEditOnTabSwitch_() {
 
 function onMonthFilterChange(sel) {
   STATE.month = parseInt(sel.value, 10);
-  ['dash-month', 'm-dash-month', 'm-an-month', 'm-bud-month-select'].forEach(function (id) {
+  ['dash-month', 'm-dash-month', 'm-an-month', 'm-bud-month-select', 'm-tx-month'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el && el !== sel) el.value = STATE.month;
   });
@@ -6135,7 +6160,7 @@ function renderDashboard() {
 
   renderDashExpensesList(txs, budgetRows);
   renderDashBreakdownChart(txs);
-  renderDashBudgetAllocationChart(income, needsPlanned, wantsPlanned, savingsActual);
+  renderDashBudgetAllocationChart(income, needsPlanned, wantsPlanned, sumSavingsActualExcludingRollover_(txs));
   renderDashExpenseTrendChart();
   renderDashIncomeExpenseChart();
   renderDashBankList();
@@ -6869,7 +6894,7 @@ function renderMobileAnalytics() {
   setText('m-an-savings', rupiah(savingsActual));
 
   renderMobileBreakdownChart(txs);
-  renderMobileBudgetAllocationChart(income, needsPlanned, wantsPlanned, savingsActual);
+  renderMobileBudgetAllocationChart(income, needsPlanned, wantsPlanned, sumSavingsActualExcludingRollover_(txs));
   renderMobileTrendChart();
   renderMobileIncomeExpenseChart();
   renderInsights('m-an-insights-wrap');
@@ -10266,24 +10291,13 @@ function mBulkSetTagTx() {
 }
 
 function renderMobileTransactions() {
-  var monthLabel = document.getElementById('m-tx-month-label');
-  if (monthLabel) monthLabel.textContent = monthLabelParen_(STATE.month);
-
   var month = STATE.month || 0;
   var group = (document.getElementById('m-tx-group') || {}).value || '';
   var search = ((document.getElementById('m-tx-search') || {}).value || '').toLowerCase();
-  var tagSel = document.getElementById('m-tx-tag');
-  if (tagSel) {
-    var prevTag = tagSel.value;
-    tagSel.innerHTML = buildTagFilterOptionsHtml_();
-    tagSel.value = prevTag;
-  }
-  var tagFilter = tagSel ? tagSel.value : '';
 
   var list = STATE.data.transactions.slice();
   if (month) list = list.filter(function (t) { return Number(t.Month) === month; });
   if (group) list = list.filter(function (t) { return t.Group === group; });
-  if (tagFilter) list = list.filter(function (t) { return String(t.Tag || '') === tagFilter; });
   if (search) list = list.filter(function (t) {
     return (String(t.Category).toLowerCase().indexOf(search) > -1) ||
            (String(t.Note).toLowerCase().indexOf(search) > -1) ||
@@ -10559,7 +10573,7 @@ function renderMobileBudgeting() {
   var monthTx = STATE.data.transactions.filter(function (t) { return Number(t.Month) === BUD_MONTH; });
 
   var totalIncomeActual = sumByGroup(monthTx, 'Income');
-  var totalSavingsActual = sumByGroup(monthTx, 'Savings');
+  var totalSavingsActual = sumSavingsActualExcludingRollover_(monthTx);
   var totalAllocated = STATE.data.budget
     .filter(function (b) { return Number(b.Month) === BUD_MONTH && (b.Group === 'Needs' || b.Group === 'Wants'); })
     .reduce(function (s, b) { return s + Number(b.PlannedAmount); }, 0) + totalSavingsActual;
@@ -11008,10 +11022,15 @@ function computeProportionalAccountSplit_(amount) {
 }
 
 /* Render pratinjau pembagian per akun di dalam dialog Rollover (dipanggil
-   ulang tiap kali destination = Pocket & tiap kali angka "Amount to roll
-   over" diubah manual oleh user). */
-function renderRolloverAccountBreakdown_(amount) {
-  var wrap = document.getElementById('ro-account-breakdown');
+   ulang tiap kali destination berubah & tiap kali angka "Amount to roll
+   over" diubah manual oleh user). `wrapId` supaya bisa dipakai bersama
+   oleh dua destination (Income & Pocket) — masing-masing punya elemen
+   breakdown sendiri (lihat ro-income-account-breakdown / ro-account-breakdown
+   di HTML dialognya), karena keduanya sekarang sama-sama butuh split
+   proporsional (lihat catatan panjang di
+   rolloverMonthRemainingToIncome/rolloverMonthRemainingToPocket di Kode.gs). */
+function renderRolloverAccountBreakdown_(amount, wrapId) {
+  var wrap = document.getElementById(wrapId || 'ro-account-breakdown');
   if (!wrap) return;
   var result = computeProportionalAccountSplit_(amount);
   if (!result.splits.length) {
@@ -11033,12 +11052,13 @@ function renderRolloverAccountBreakdown_(amount) {
 
 /* Dipanggil dari oninput <input id="ro-amount"> (bareng bindRupiahInputEvent)
    supaya pratinjau pembagian per akun ikut ter-update live saat user
-   mengedit jumlah rollover, kalau destination-nya sedang Pocket. */
+   mengedit jumlah rollover — berlaku utk KEDUA destination sekarang
+   (Income & Pocket sama-sama butuh split proporsional). */
 function onRolloverAmountInput_() {
-  if (ROLLOVER_DEST_ !== 'pocket') return;
   var amountEl = document.getElementById('ro-amount');
   if (!amountEl) return;
-  renderRolloverAccountBreakdown_(rawNumber(amountEl));
+  var wrapId = ROLLOVER_DEST_ === 'income' ? 'ro-income-account-breakdown' : 'ro-account-breakdown';
+  renderRolloverAccountBreakdown_(rawNumber(amountEl), wrapId);
 }
 
 function promptRolloverRemainingToIncome(opts) {
@@ -11073,7 +11093,6 @@ function promptRolloverRemainingToIncome(opts) {
   var sourceLabel = MONTH_NAMES[opts.sourceMonth - 1] + ' ' + opts.sourceYear;
 
   var incomeOptions = incomeList.map(function (c) { return '<option value="' + escapeHtml(c.Name) + '">' + escapeHtml(c.Name) + '</option>'; }).join('');
-  var accountOptions = accountList.map(function (a) { return '<option value="' + escapeHtml(a.Name) + '">' + escapeHtml(a.Name) + '</option>'; }).join('');
   var pocketOptions = pocketList.map(function (p) { return '<option value="' + escapeHtml(p.Name) + '">' + escapeHtml(p.Name) + '</option>'; }).join('');
 
   ROLLOVER_DEST_ = canIncome ? 'income' : 'pocket';
@@ -11108,8 +11127,7 @@ function promptRolloverRemainingToIncome(opts) {
         '<div id="ro-income-fields"' + (canIncome ? '' : ' style="display:none;"') + '>' +
           '<label style="font-weight:600;font-size:.78rem;display:block;margin-bottom:4px;">Add as Income category</label>' +
           '<select id="ro-income-cat" class="swal2-select" style="margin:0 0 12px;width:100%;">' + incomeOptions + '</select>' +
-          '<label style="font-weight:600;font-size:.78rem;display:block;margin-bottom:4px;">Account</label>' +
-          '<select id="ro-account" class="swal2-select" style="margin:0;width:100%;">' + accountOptions + '</select>' +
+          '<div id="ro-income-account-breakdown" style="background:#f8fafc;border:1px solid #eef1f5;border-radius:10px;padding:10px 12px;"></div>' +
         '</div>' +
         '<div id="ro-pocket-fields" style="display:none;">' +
           '<label style="font-weight:600;font-size:.78rem;display:block;margin-bottom:4px;">Add to Pocket (Savings)</label>' +
@@ -11135,10 +11153,14 @@ function promptRolloverRemainingToIncome(opts) {
         if (pocketBtn) pocketBtn.classList.toggle('active', ROLLOVER_DEST_ === 'pocket');
         if (incomeFields) incomeFields.style.display = ROLLOVER_DEST_ === 'income' ? '' : 'none';
         if (pocketFields) pocketFields.style.display = ROLLOVER_DEST_ === 'pocket' ? '' : 'none';
-        if (ROLLOVER_DEST_ === 'pocket') {
-          var amountEl = document.getElementById('ro-amount');
-          renderRolloverAccountBreakdown_(amountEl ? rawNumber(amountEl) : opts.amount);
-        }
+        // BARU: kedua destination sekarang sama-sama butuh split
+        // proporsional (lihat catatan panjang di
+        // rolloverMonthRemainingToIncome/Pocket di Kode.gs) — dulu cuma
+        // dipanggil utk 'pocket'.
+        var amountEl = document.getElementById('ro-amount');
+        var amt = amountEl ? rawNumber(amountEl) : opts.amount;
+        if (ROLLOVER_DEST_ === 'income') renderRolloverAccountBreakdown_(amt, 'ro-income-account-breakdown');
+        else renderRolloverAccountBreakdown_(amt, 'ro-account-breakdown');
       }
       if (incomeBtn && !incomeBtn.disabled) incomeBtn.addEventListener('click', function () { ROLLOVER_DEST_ = 'income'; applyDest(); });
       if (pocketBtn && !pocketBtn.disabled) pocketBtn.addEventListener('click', function () { ROLLOVER_DEST_ = 'pocket'; applyDest(); });
@@ -11159,13 +11181,17 @@ function promptRolloverRemainingToIncome(opts) {
         Swal.showValidationMessage('Amount can\'t be more than what\'s available this month (' + rupiah(opts.amount) + ').');
         return false;
       }
-      if (ROLLOVER_DEST_ === 'income') {
-        return { dest: 'income', amount: chosenAmount, incomeCategory: document.getElementById('ro-income-cat').value, account: document.getElementById('ro-account').value };
-      }
+      // BARU: jalur Income sekarang JUGA pakai split proporsional otomatis
+      // (bukan lagi 1 akun manual) — persis alasan yang sama seperti
+      // Pocket (lihat catatan panjang di rolloverMonthRemainingToIncome
+      // di Kode.gs).
       var split = computeProportionalAccountSplit_(chosenAmount);
       if (!split.splits.length || !split.sufficient) {
         Swal.showValidationMessage('Short by ' + rupiah(split.shortBy) + ' — only ' + rupiah(split.totalEligible) + ' available across your accounts.');
         return false;
+      }
+      if (ROLLOVER_DEST_ === 'income') {
+        return { dest: 'income', amount: chosenAmount, incomeCategory: document.getElementById('ro-income-cat').value, accounts: split.splits };
       }
       return { dest: 'pocket', amount: chosenAmount, pocketCategory: document.getElementById('ro-pocket-cat').value, accounts: split.splits };
     }
@@ -11208,24 +11234,29 @@ function promptRolloverRemainingToIncome(opts) {
       .withSuccessHandler(function (res) {
         hideLoad();
         if (!res.success) { Swal.fire('Error', res.message, 'error'); return; }
-        // BARU: rollover ke Income sekarang double-entry — baris "penutup"
-        // di bulan SUMBER (res.closingRecord, tahun res.sourceYear) DAN
-        // baris Income beneran di bulan TUJUAN (res.record, tahun
-        // res.targetYear). Dua tahun ini BISA beda (rollover Desember ->
+        // BARU: rollover ke Income sekarang double-entry x N akun — baris
+        // "penutup" di bulan SUMBER (res.closingRecords, tahun
+        // res.sourceYear) DAN baris Income beneran di bulan TUJUAN
+        // (res.records, tahun res.targetYear), satu pasang per akun dari
+        // split proporsional. Dua tahun ini BISA beda (rollover Desember ->
         // Januari tahun baru), jadi dicek terpisah, masing-masing cuma
         // masuk STATE.data.transactions kalau tahunnya cocok dengan yang
         // sedang dibuka sekarang.
         var inSourceYear = mAcceptTxYearOrWarn_(res.sourceYear);
-        if (inSourceYear && res.closingRecord) STATE.data.transactions.push(res.closingRecord);
+        if (inSourceYear && res.closingRecords && res.closingRecords.length) {
+          res.closingRecords.forEach(function (r) { STATE.data.transactions.push(r); });
+        }
         var inTargetYear = mAcceptTxYearOrWarn_(res.targetYear);
-        if (inTargetYear && res.record) STATE.data.transactions.push(res.record);
+        if (inTargetYear && res.records && res.records.length) {
+          res.records.forEach(function (r) { STATE.data.transactions.push(r); });
+        }
         Swal.fire({ icon: 'success', title: 'Rolled over!', text: rupiah(chosenAmount) + ' added as Income in ' + targetLabel + '.', timer: 2600, showConfirmButton: false });
         if (typeof opts.onDone === 'function') opts.onDone();
       })
       .withFailureHandler(function (err) { hideLoad(); Swal.fire('Error', err.message, 'error'); })
       .rolloverMonthRemainingToIncome({
         sourceYear: opts.sourceYear, sourceMonth: opts.sourceMonth,
-        incomeCategory: result.value.incomeCategory, account: result.value.account, amount: chosenAmount
+        incomeCategory: result.value.incomeCategory, amount: chosenAmount, accounts: result.value.accounts
       });
   });
 }
@@ -12598,7 +12629,7 @@ function renderBudgeting() {
 
   // Stat cards — recomputed strictly for BUD_MONTH
   var totalIncomeActual = sumByGroup(monthTx, 'Income');
-  var totalSavingsActual = sumByGroup(monthTx, 'Savings');
+  var totalSavingsActual = sumSavingsActualExcludingRollover_(monthTx);
   var totalAllocated = STATE.data.budget
     .filter(function (b) { return Number(b.Month) === BUD_MONTH && (b.Group === 'Needs' || b.Group === 'Wants'); })
     .reduce(function (s, b) { return s + Number(b.PlannedAmount); }, 0) + totalSavingsActual;
@@ -12773,7 +12804,7 @@ function renderBudgetingYearly(preserveScrollLeft) {
   // Stat cards — whole-year totals (matches the "(STATE.year)" label shown above)
   var yearTx = STATE.data.transactions;
   var totalIncomeActual = sumByGroup(yearTx, 'Income');
-  var totalSavingsActual = sumByGroup(yearTx, 'Savings');
+  var totalSavingsActual = sumSavingsActualExcludingRollover_(yearTx);
   var totalNeedsWantsPlanned = STATE.data.budget
     .filter(function (b) { return b.Group === 'Needs' || b.Group === 'Wants'; })
     .reduce(function (s, b) { return s + Number(b.PlannedAmount); }, 0);
@@ -12946,12 +12977,15 @@ function getRolloverStatusForMonth_(sourceYear, sourceMonth) {
   // tahun, bukan cuma 1).
   var loadedYear = Number(STATE.year);
   if (loadedYear !== sourceYear && loadedYear !== target.targetYear) return null;
-  // BARU: marker sekarang menyertakan bulan tujuan juga (lihat
-  // rolloverNoteMarker_ di Kode.gs) — dua fungsi ini HARUS selalu
-  // menghasilkan string yang identik, karena dicocokkan persis (===) ke
-  // kolom Note transaksi.
-  var marker = 'Remaining Budget in ' + MONTH_NAMES[sourceMonth - 1] + ' ' + sourceYear +
-    ' \u2192 ' + MONTH_NAMES[target.targetMonth - 1] + ' ' + target.targetYear;
+  // BARU: jalur "To Pocket" & "To Income" sekarang punya format Note
+  // BEDA — Pocket TIDAK lagi menyebut bulan tujuan (uangnya tidak pernah
+  // benar-benar pindah bulan di jalur itu), Income tetap menyebutnya
+  // (uangnya memang pindah). Dua-duanya HARUS dicek di sini, karena kita
+  // belum tahu jalur mana yang dipakai sebelum ketemu barisnya (lihat
+  // rolloverNoteMarker_ di Kode.gs — dua fungsi ini HARUS selalu
+  // menghasilkan string yang identik).
+  var pocketMarker = 'Remaining Budget in ' + MONTH_NAMES[sourceMonth - 1] + ' ' + sourceYear;
+  var incomeMarker = pocketMarker + ' \u2192 ' + MONTH_NAMES[target.targetMonth - 1] + ' ' + target.targetYear;
   var targetLabel = MONTH_NAMES[target.targetMonth - 1] + ' ' + target.targetYear;
 
   // BARU: jalur Pocket sekarang JUGA menulis TX_ (Group='Savings'), bukan
@@ -12962,7 +12996,8 @@ function getRolloverStatusForMonth_(sourceYear, sourceMonth) {
   // saja, bukan totalnya. Sekarang pakai .filter() + jumlahkan semua baris
   // yang match markernya.
   var matches = (STATE.data.transactions || []).filter(function (t) {
-    return (t.Group === 'Income' || t.Group === 'Savings') && t.Tag === 'Budget Rollover' && String(t.Note) === marker;
+    return (t.Group === 'Income' || t.Group === 'Savings') && t.Tag === 'Budget Rollover' &&
+      (String(t.Note) === pocketMarker || String(t.Note) === incomeMarker);
   });
   if (!matches.length) return null;
 
