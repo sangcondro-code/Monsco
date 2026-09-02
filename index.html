@@ -320,15 +320,21 @@
        (bukan memecah layout halaman) — scrollbar-nya disembunyikan supaya
        tetap terlihat rapi. min-width:0 WAJIB di sini supaya overflow-x:auto
        benar-benar berfungsi di dalam flex row (default flex item punya
-       min-width:auto yang mencegah elemen ini menyusut/nge-scroll). */
+       min-width:auto yang mencegah elemen ini menyusut/nge-scroll).
+       PENTING: JANGAN pasang justify-content-end/flex-end di elemen ini atau
+       parent-nya. Kombinasi itu dengan overflow-x:auto adalah bug klasik CSS
+       di browser LTR — begitu kontennya meluap, isi paling KIRI (mis. select
+       filter bulan) terdorong ke luar area terlihat dan TIDAK BISA di-scroll
+       balik untuk melihatnya lagi (scrollLeft tidak bisa negatif), jadi
+       kepotong permanen ("eptember" alih-alih "September"). Default
+       (flex-start) aman dipakai bersama overflow-x:auto. */
     .hdr-controls-row { flex-wrap:nowrap !important; overflow-x:auto; min-width:0; -ms-overflow-style:none; scrollbar-width:none; padding-bottom:2px; }
     .hdr-controls-row::-webkit-scrollbar { display:none; height:0; }
     .hdr-controls-row > * { flex-shrink:0; }
-    /* Tinggi select filter bulan DISAMAKAN dengan tinggi tombol di sebelahnya
-       (.bud-toolbar-btn / .bud-view-toggle button, keduanya height:36px) —
-       Bootstrap form-select-sm bawaan lebih pendek (~31px), makanya sebelumnya
-       kelihatan tidak sejajar/konsisten tingginya. */
-    .hdr-month-select { height:36px; }
+    /* Tinggi tombol Add Income/Add Saving & toggle Monthly/Yearly DISAMAKAN
+       ke 31px — tinggi bawaan native <select class="form-select-sm"> (bukan
+       sebaliknya), supaya semuanya konsisten sejajar di satu baris. */
+    .hdr-month-select { height:31px; }
     .trx-bulk-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--brand-light); border:1px solid #bfdbfe; border-radius:.6rem; padding:.6rem .9rem; margin-bottom:.75rem; font-size:.85rem; font-weight:700; color:var(--brand); flex-wrap:wrap; }
     .trx-bulk-actions { display:flex; gap:8px; flex-wrap:wrap; }
 
@@ -428,7 +434,7 @@
     .gs-init-badge { font-size:.62rem; background:var(--brand-light); color:var(--brand); border-radius:4px; padding:2px 6px; font-weight:700; white-space:nowrap; flex-shrink:0; }
 
     /* ===== BUDGETING — toolbar & section controls ===== */
-    .bud-toolbar-btn { display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 14px; font-size:.8rem; font-weight:700; border-radius:.5rem; border:1px solid var(--brand); background:#fff; color:var(--brand); cursor:pointer; transition:.15s; white-space:nowrap; }
+    .bud-toolbar-btn { display:inline-flex; align-items:center; gap:6px; height:31px; padding:0 14px; font-size:.8rem; font-weight:700; border-radius:.5rem; border:1px solid var(--brand); background:#fff; color:var(--brand); cursor:pointer; transition:.15s; white-space:nowrap; }
     .bud-toolbar-btn:hover { background:var(--brand-light); }
     .bud-toolbar-btn.solid { background:var(--brand); color:#fff; }
     .bud-toolbar-btn.solid:hover { background:#00457e; }
@@ -442,7 +448,7 @@
     .bud-toolbar-btn.teal.solid { background:#0d9488; color:#fff; }
     .bud-toolbar-btn.teal.solid:hover { background:#0b7c72; }
 
-    .bud-view-toggle { display:inline-flex; height:36px; border:1px solid var(--brand); border-radius:.5rem; overflow:hidden; }
+    .bud-view-toggle { display:inline-flex; height:31px; border:1px solid var(--brand); border-radius:.5rem; overflow:hidden; }
     .bud-view-toggle button { display:inline-flex; align-items:center; height:100%; border:none; background:#fff; color:var(--brand); font-weight:700; font-size:.8rem; padding:0 16px; cursor:pointer; transition:.15s; }
     .bud-view-toggle button.active { background:var(--brand); color:#fff; }
 
@@ -2179,7 +2185,7 @@
     <div id="view-transactions" class="view d-none">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-nowrap gap-2">
         <h4 class="page-title mb-0" style="flex-shrink:0;white-space:nowrap;">Transactions</h4>
-        <div class="d-flex gap-2 align-items-center justify-content-end hdr-controls-row">
+        <div class="d-flex gap-2 align-items-center hdr-controls-row">
           <select id="trx-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
           <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:200px;" oninput="debouncedRenderTransactions()">
           <select class="form-select form-select-sm" id="trx-group-filter" style="width:140px;" onchange="renderTransactions()">
@@ -2247,7 +2253,7 @@
           <h4 class="page-title mb-0" style="white-space:nowrap;">Budgeting <span class="text-muted small fw-normal" id="bud-month">(July)</span></h4>
           <div class="text-muted small">Plan Income, Savings, and Spending — in that order</div>
         </div>
-        <div class="d-flex align-items-center gap-2 justify-content-end hdr-controls-row">
+        <div class="d-flex align-items-center gap-2 hdr-controls-row">
           <select id="bud-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
           <div class="bud-view-toggle" role="group" aria-label="Budgeting view">
             <button type="button" id="bud-view-btn-monthly" class="active" onclick="setBudgetingViewMode('monthly')">Monthly</button>
