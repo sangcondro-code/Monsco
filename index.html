@@ -310,6 +310,25 @@
     }
     .trx-select-mode-btn:hover { border-color:#adb5bd; }
     .trx-select-mode-btn.active { background:var(--brand); border-color:var(--brand); color:#fff; }
+
+    /* Baris toolbar di header Transactions & Budgeting (filter bulan, search,
+       tombol Add Income/Saving, dst.) — HARUS selalu satu baris, tidak boleh
+       "patah" ke baris kedua (itu yang bikin tombol terakhir nyangkut sendiri
+       di kiri bawah, kelihatan berantakan). flex-wrap:nowrap mengunci itu.
+       Sebagai jaring pengaman kalau jendela browser sangat sempit (bukan
+       untuk kasus normal), strip ini boleh di-scroll horizontal SENDIRI
+       (bukan memecah layout halaman) — scrollbar-nya disembunyikan supaya
+       tetap terlihat rapi. min-width:0 WAJIB di sini supaya overflow-x:auto
+       benar-benar berfungsi di dalam flex row (default flex item punya
+       min-width:auto yang mencegah elemen ini menyusut/nge-scroll). */
+    .hdr-controls-row { flex-wrap:nowrap !important; overflow-x:auto; min-width:0; -ms-overflow-style:none; scrollbar-width:none; padding-bottom:2px; }
+    .hdr-controls-row::-webkit-scrollbar { display:none; height:0; }
+    .hdr-controls-row > * { flex-shrink:0; }
+    /* Tinggi select filter bulan DISAMAKAN dengan tinggi tombol di sebelahnya
+       (.bud-toolbar-btn / .bud-view-toggle button, keduanya height:36px) —
+       Bootstrap form-select-sm bawaan lebih pendek (~31px), makanya sebelumnya
+       kelihatan tidak sejajar/konsisten tingginya. */
+    .hdr-month-select { height:36px; }
     .trx-bulk-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--brand-light); border:1px solid #bfdbfe; border-radius:.6rem; padding:.6rem .9rem; margin-bottom:.75rem; font-size:.85rem; font-weight:700; color:var(--brand); flex-wrap:wrap; }
     .trx-bulk-actions { display:flex; gap:8px; flex-wrap:wrap; }
 
@@ -2158,10 +2177,10 @@
 
     <!-- ======================== TRANSACTIONS ======================== -->
     <div id="view-transactions" class="view d-none">
-      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <h4 class="page-title mb-0">Transactions</h4>
-        <div class="d-flex gap-2 align-items-center justify-content-end flex-wrap">
-          <select id="trx-month-select" class="form-select form-select-sm" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-nowrap gap-2">
+        <h4 class="page-title mb-0" style="flex-shrink:0;white-space:nowrap;">Transactions</h4>
+        <div class="d-flex gap-2 align-items-center justify-content-end hdr-controls-row">
+          <select id="trx-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
           <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:200px;" oninput="debouncedRenderTransactions()">
           <select class="form-select form-select-sm" id="trx-group-filter" style="width:140px;" onchange="renderTransactions()">
             <option value="">All Types</option>
@@ -2223,13 +2242,13 @@
 
     <!-- ======================== BUDGETING ======================== -->
     <div id="view-budgeting" class="view d-none">
-      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div>
-          <h4 class="page-title mb-0">Budgeting <span class="text-muted small fw-normal" id="bud-month">(July)</span></h4>
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-nowrap gap-2">
+        <div style="flex-shrink:0;min-width:0;">
+          <h4 class="page-title mb-0" style="white-space:nowrap;">Budgeting <span class="text-muted small fw-normal" id="bud-month">(July)</span></h4>
           <div class="text-muted small">Plan Income, Savings, and Spending — in that order</div>
         </div>
-        <div class="d-flex align-items-center gap-2 justify-content-end flex-wrap">
-          <select id="bud-month-select" class="form-select form-select-sm" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
+        <div class="d-flex align-items-center gap-2 justify-content-end hdr-controls-row">
+          <select id="bud-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
           <div class="bud-view-toggle" role="group" aria-label="Budgeting view">
             <button type="button" id="bud-view-btn-monthly" class="active" onclick="setBudgetingViewMode('monthly')">Monthly</button>
             <button type="button" id="bud-view-btn-yearly" onclick="setBudgetingViewMode('yearly')">Yearly</button>
