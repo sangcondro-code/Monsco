@@ -580,10 +580,21 @@
 
     .planned-locked { font-weight:700; color:#111827; }
     .bud-month-hint { font-size:.74rem; color:#6b7280; font-weight:500; }
-    .bud-planned-edit { display:flex; align-items:center; gap:8px; }
-    .bud-planned-edit input.budget-input { flex:1; min-width:0; }
-    .bud-prev-hint { font-size:.66rem; color:#94a3b8; line-height:1.45; white-space:nowrap; flex-shrink:0; text-align:right; }
-    .bud-prev-hint span { display:block; color:#b0b8c4; }
+    /* Tabel Needs/Wants (Planned/OF INCOME/Actual/Progress/Remaining) — lebar
+       kolom DIKUNCI lewat table-layout:fixed + colgroup persentase tetap,
+       supaya semua baris punya lebar kolom yang SAMA PERSIS dan tidak lagi
+       mengikuti panjang teks "Last month .../Spent ..." di tiap baris (itu
+       sumber kotak input Planned yang sebelumnya kelihatan kecil & tidak
+       konsisten antar kategori). Kolom Category juga dipersempit — dulu
+       memakan semua sisa lebar tabel karena satu-satunya kolom tanpa width
+       eksplisit sementara tabel Bootstrap default width:100%. */
+    .bud-expense-tbl { table-layout:fixed; width:100%; }
+    .bud-expense-tbl col.bud-col-cat { width:18%; }
+    .bud-expense-tbl col.bud-col-num { width:16.4%; }
+    .bud-planned-edit { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+    .bud-planned-edit input.budget-input { flex:0 0 108px; width:108px; min-width:108px; text-align:right; }
+    .bud-prev-hint { font-size:.66rem; color:#94a3b8; line-height:1.45; white-space:nowrap; flex-shrink:0; text-align:right; overflow:hidden; text-overflow:ellipsis; }
+    .bud-prev-hint span { display:block; color:#b0b8c4; overflow:hidden; text-overflow:ellipsis; }
 
     /* Per-category expand toggle (Income / Savings rows) */
     .bud-cat-label { display:inline-flex; align-items:center; gap:10px; cursor:pointer; user-select:none; }
@@ -5787,6 +5798,14 @@ function mIsBusyEditing() {
   // ada grup (Needs/Wants) yang sedang dalam mode Edit (BUD_EDIT), anggap
   // "sedang sibuk mengisi form" juga — sama seperti modal/sheet terbuka.
   if (typeof BUD_EDIT !== 'undefined' && (BUD_EDIT.Needs || BUD_EDIT.Wants)) return true;
+  // BUG FIX TAMBAHAN — kasus yang sama juga terjadi di Budgeting tampilan
+  // YEARLY: saat kolom satu bulan dibuka untuk mass-edit (lihat
+  // BUD_YEARLY_EDIT_MONTH / startYearlyPlannedMonthEdit_), input di kolom
+  // itu juga inline di halaman, bukan modal/sheet — jadi pengecekan di atas
+  // TIDAK menangkapnya. Sebelumnya hanya BUD_EDIT (Monthly view) yang dicek,
+  // sehingga auto-refresh tetap menimpa render Yearly dan menghapus angka
+  // yang baru diketik tapi belum di-Save. Sekarang keduanya dicek.
+  if (typeof BUD_YEARLY_EDIT_MONTH !== 'undefined' && BUD_YEARLY_EDIT_MONTH) return true;
   return false;
 }
 
@@ -13262,8 +13281,9 @@ function renderBudExpenseSection(group, list, monthTx, icon, color) {
       '<div class="section-title" style="color:' + color + ';"><i class="fas ' + icon + '"></i> ' + group + '</div>' +
       '<div class="bud-actions">' + actionHtml + '</div>' +
     '</div>' +
-    '<div class="card card-table-clip mb-4"><div class="card-body p-0"><div class="table-responsive"><table class="table tbl mb-0">' +
-    '<thead><tr><th>Category</th><th class="text-end" style="width:170px;">Planned</th><th class="text-end" style="width:170px;">OF INCOME</th><th class="text-end" style="width:170px;">Actual</th><th class="text-end" style="width:170px;">Progress</th><th class="text-end" style="width:170px;">Remaining</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></div></div>';
+    '<div class="card card-table-clip mb-4"><div class="card-body p-0"><div class="table-responsive"><table class="table tbl bud-expense-tbl mb-0">' +
+    '<colgroup><col class="bud-col-cat"><col class="bud-col-num"><col class="bud-col-num"><col class="bud-col-num"><col class="bud-col-num"><col class="bud-col-num"></colgroup>' +
+    '<thead><tr><th>Category</th><th class="text-end">Planned</th><th class="text-end">OF INCOME</th><th class="text-end">Actual</th><th class="text-end">Progress</th><th class="text-end">Remaining</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></div></div>';
 }
 
 function toggleBudEdit(group) {
@@ -17883,6 +17903,51 @@ function mBiometricLogin() {
   document.getElementById('login-section').classList.add('d-none');
   showBootLoad('Memuat sesi...');
 
+  // PERBAIKAN #3 (boot/loading awal kadang terasa lama): sebelumnya app
+  // SELALU menunggu 1 round-trip PENUH ke server Apps Script (loginUserBySession)
+  // sebelum ADA APAPUN yang ditampilkan — dan Apps Script kadang butuh
+  // beberapa detik untuk "bangun" (cold start), jadi splash bisa terasa lama
+  // nyangkut padahal sebenarnya cuma nunggu server. Kalau device ini SUDAH
+  // PERNAH login & menyimpan data tahun berjalan (localStorage — lihat
+  // mSaveDataCache_), sesi yang tersimpan hampir selalu masih valid, jadi
+  // TIDAK perlu menunggu server dulu sebelum menampilkan apa pun. Sekarang:
+  // kalau cache data lokal untuk username ini ada, app + data itu langsung
+  // ditampilkan SEKARANG JUGA (optimistic), sementara validasi sesi ke
+  // server tetap jalan seperti biasa di belakang layar. Kalau ternyata sesi
+  // sudah tidak valid (server tegas bilang gagal), baru mundur ke layar
+  // login. Ini TIDAK menambah data yang "bocor": data itu sudah tersimpan
+  // di localStorage perangkat ini sejak sesi login sebelumnya yang sah.
+  var usedInstantCache = false;
+  try {
+    STATE.username = sess.username;
+    var instantCached = mLoadDataCache_(STATE.year);
+    if (instantCached) {
+      STATE.sessionToken = sess.token;
+      STATE.displayName = sess.displayName || sess.username;
+      hideBootLoad();
+      document.documentElement.classList.remove('has-session');
+      var appElBoot = document.getElementById('app');
+      appElBoot.style.display = ''; appElBoot.classList.remove('d-none');
+      var mShellElBoot = document.getElementById('m-shell');
+      if (mShellElBoot) mShellElBoot.classList.remove('d-none');
+      document.getElementById('user-display-name').textContent = STATE.displayName;
+      document.getElementById('dash-greet').textContent = STATE.displayName;
+      applyLoadedData(instantCached);
+      go('dashboard');
+      mGo('home');
+      renderMobileHome();
+      // PENTING (anti data basi): tandai indikator sync sebagai "belum
+      // terkonfirmasi" (abu-abu, sama seperti keadaan awal sebelum initApp()
+      // biasa jalan) SEJAK DETIK INI angka cache ditampilkan. Titik ini baru
+      // berubah warna (setSyncIndicator(false), lihat initApp/silentRefreshData)
+      // begitu server BENAR-BENAR mengonfirmasi datanya masih sama/terbaru —
+      // jadi user selalu punya sinyal visual jujur soal status datanya, bukan
+      // cuma dianggap "pasti sudah fresh" begitu saja.
+      setSyncIndicator(true);
+      usedInstantCache = true;
+    }
+  } catch (eInstant) { usedInstantCache = false; }
+
   // PERBAIKAN #2 (kembali ke layar login padahal sesi masih sah): sebelumnya
   // KEGAGALAN JARINGAN (mis. koneksi belum pulih saat HP baru dibangunkan dari
   // background/sleep) diperlakukan SAMA seperti sesi tidak valid — langsung
@@ -17898,6 +17963,14 @@ function mBiometricLogin() {
         if (!res.success) {
           // Server tegas bilang sesi ini sudah tidak valid — baru di sini aman dihapus.
           clearStoredSession();
+          if (usedInstantCache) {
+            // Sudah terlanjur menampilkan app dari cache lokal secara
+            // optimistic di atas — sembunyikan lagi, sama seperti jalur biasa.
+            var appElOut = document.getElementById('app');
+            appElOut.classList.add('d-none'); appElOut.style.display = 'none';
+            var mShellElOut2 = document.getElementById('m-shell');
+            if (mShellElOut2) mShellElOut2.classList.add('d-none');
+          }
           document.getElementById('login-section').classList.remove('d-none');
           return;
         }
@@ -17916,17 +17989,35 @@ function mBiometricLogin() {
         if (!isRetry) {
           // Kemungkinan besar cuma koneksi belum siap — coba sekali lagi
           // setelah jeda singkat, JANGAN langsung hapus sesi / paksa login.
-          showBootLoad('Menyambungkan ulang...');
+          // Kalau app sudah tampil dari cache lokal (usedInstantCache), tidak
+          // perlu menampilkan splash lagi — user sudah bisa pakai appnya.
+          if (!usedInstantCache) showBootLoad('Menyambungkan ulang...');
           setTimeout(function () { attemptSessionRestore(true); }, 1500);
           return;
         }
-        // Sudah dicoba 2x dan tetap gagal (bukan cuma sekali gagal) — baru di
-        // sini fallback ke layar login, TAPI sesi tersimpan TIDAK dihapus,
-        // supaya begitu koneksi normal lagi, percobaan berikutnya bisa auto-restore
-        // lagi tanpa user harus ketik ulang username/password.
+        // Sudah dicoba 2x dan tetap gagal karena JARINGAN (bukan server bilang
+        // sesi invalid) — sesi tersimpan TIDAK dihapus. Kalau tadi sempat
+        // menampilkan app dari cache lokal, JANGAN paksa balik ke layar
+        // login — user tetap bisa pakai app dengan data yang mungkin sedikit
+        // basi, dan auto-refresh berikutnya akan coba sinkron lagi sendiri
+        // begitu koneksi pulih (prinsip sama seperti initApp() saat load
+        // data awal gagal tapi ada cache).
         hideBootLoad();
         document.documentElement.classList.remove('has-session');
         console.error('Session restore failed after retry:', err);
+        if (usedInstantCache) {
+          // Jaringan gagal 2x saat memvalidasi sesi, TAPI data yang sedang
+          // ditampilkan masih cache lokal (mungkin basi) — jangan cuma
+          // pasrah menunggu siklus auto-refresh berikutnya (bisa sampai 60
+          // detik). Coba tarik data asli SEKARANG JUGA satu kali lagi;
+          // silentRefreshData() sendiri yang akan mengganti tampilan &
+          // menghijaukan indikator sync begitu berhasil, dan aman dipanggil
+          // berulang (ada guard _autoRefreshInFlight di dalamnya).
+          silentRefreshData();
+          startAutoRefresh();
+          startIdleTimer();
+          return;
+        }
         document.getElementById('login-section').classList.remove('d-none');
       })
       .loginUserBySession(sess.username, sess.token);
