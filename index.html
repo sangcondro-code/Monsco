@@ -159,11 +159,19 @@
        supaya berlaku juga di halaman Login, bukan cuma Dashboard. */
     html, body { overscroll-behavior: none; }
     body { font-family:'Segoe UI',sans-serif; background:#f3f4f6; font-size:.88rem; overflow-x:hidden; }
-    /* BUG FIX: lihat catatan panjang di GAS-Index.html pada baris yang sama —
-       tag <b>/<strong> tanpa font-weight eksplisit ikut memakai default
-       browser "bolder" (RELATIF terhadap induknya, bisa jadi 900 di dalam
-       container yang sudah font-weight:700), bukan 700 tetap. Diseragamkan
-       di sini juga supaya kedua frontend (GAS & GitHub Pages) selalu identik. */
+    /* BUG FIX: beberapa teks tebal (mis. nominal "Total remaining" di ringkasan
+       Rollover) tampil LEBIH TEBAL dari 700 yang dipakai di seluruh app,
+       padahal tidak ada satu pun aturan font-weight:800/900 ditulis di CSS
+       ini. Penyebabnya: tag <b>/<strong> TIDAK PUNYA font-weight eksplisit di
+       sini, jadi browser memakai default bawaannya sendiri, yaitu
+       "font-weight: bolder" — nilai RELATIF, dihitung dari weight elemen
+       induknya, BUKAN 700 tetap. Untuk elemen seperti <b> di dalam
+       .bud-rollover-summary-total (induknya sudah font-weight:700), "bolder"
+       dari basis 700 dihitung browser menjadi 900 (lihat tabel bolder/lighter
+       di spesifikasi CSS) — makanya kelihatan lebih tebal dari teks bold lain
+       yang semuanya eksplisit 700. Diberi nilai TETAP 700 di sini supaya
+       SEMUA <b>/<strong> di seluruh app konsisten 700, tidak lagi ikut
+       menghitung relatif ke induknya. */
     b, strong { font-weight:700; }
 
     /* ===== LOGIN ===== */
@@ -311,17 +319,6 @@
     .trx-select-mode-btn:hover { border-color:#adb5bd; }
     .trx-select-mode-btn.active { background:var(--brand); border-color:var(--brand); color:#fff; }
 
-    /* Baris toolbar di header Transactions & Budgeting (filter bulan, search,
-       tombol Add Income/Saving, dst.). CATATAN PENTING (belajar dari
-       percobaan sebelumnya yang GAGAL 2x): JANGAN PAKAI overflow-x:auto atau
-       trik scroll/sembunyi apa pun di sini — kontrol seperti filter bulan
-       atau tombol Add Saving jadi KEPOTONG/HILANG dan tidak bisa dijangkau
-       user sama sekali, itu JAUH lebih buruk daripada sekadar pindah baris.
-       Solusinya di sini murni: (1) semua lebar kontrol diperkecil supaya
-       muat satu baris di lebar layar desktop wajar, (2) flex-wrap:wrap biasa
-       sebagai jaring pengaman — kalau memang benar-benar tidak muat (layar
-       sangat sempit), kontrolnya pindah ke baris baru secara UTUH dan tetap
-       terlihat semua, tidak ada satu pun yang hilang/kepotong. */
     /* PERBAIKAN LAGI (percobaan ke-4): flex-wrap:wrap masih bisa membuat
        select/tombol "patah" ke baris kedua kalau total lebar kontennya
        sedikit melebihi lebar yang tersedia di layar. Solusi final: select/
@@ -6230,6 +6227,12 @@ function renderDashboard() {
 
   renderDashExpensesList(txs, budgetRows);
   renderDashBreakdownChart(txs);
+  // BUG FIX: chart ini menjumlah needsPlanned+wantsPlanned+savingsActual —
+  // sama seperti "Allocated" di Budgeting (lihat sumSavingsActualExcludingRollover_),
+  // transaksi rollover TIDAK BOLEH ikut di sini (sudah terhitung lewat
+  // Planned Needs/Wants sumbernya) — pakai savingsActual yang sudah
+  // dikecualikan rollover-nya, BUKAN variabel `savingsActual` di atas (yang
+  // sengaja tetap mengikutkan rollover untuk Net Balance & "Total Savings").
   renderDashBudgetAllocationChart(income, needsPlanned, wantsPlanned, sumSavingsActualExcludingRollover_(txs));
   renderDashExpenseTrendChart();
   renderDashIncomeExpenseChart();
@@ -6964,6 +6967,8 @@ function renderMobileAnalytics() {
   setText('m-an-savings', rupiah(savingsActual));
 
   renderMobileBreakdownChart(txs);
+  // BUG FIX: sama seperti versi desktop — jangan ikutkan transaksi rollover
+  // di sini (sudah terhitung lewat Planned Needs/Wants sumbernya).
   renderMobileBudgetAllocationChart(income, needsPlanned, wantsPlanned, sumSavingsActualExcludingRollover_(txs));
   renderMobileTrendChart();
   renderMobileIncomeExpenseChart();
@@ -8444,6 +8449,19 @@ function computeAccountBalances() {
   });
   (STATE.data.pocket || []).forEach(function (p) {
     if (!(p.Account in balances)) balances[p.Account] = balances[p.Account] || 0;
+    // BUG FIX PENTING: Type='Transfer' (Pocket -> Income, lihat
+    // transferPocketToIncome() di Kode.gs) SELALU membuat SATU baris Income
+    // sungguhan di TX_ dengan Account & Amount yang SAMA — efeknya ke saldo
+    // akun itu SUDAH lengkap terhitung lewat baris Income itu (loop TX_ di
+    // atas). Kalau baris pocket 'Transfer' ini JUGA ikut dihitung di sini
+    // (dulu disamakan dengan Deposit, sign -1), efeknya saling meniadakan
+    // (+Amount dari Income, -Amount dari sini = net 0) — padahal seharusnya
+    // event ini MELEPASKAN uang yang dulu "dikunci" pocket kembali jadi
+    // saldo bebas (net efek ke saldo akun harusnya +Amount, bukan 0). Uang
+    // itu jadi seperti menguap dari total sistem. Jadi baris 'Transfer'
+    // SENGAJA dilewati di sini (bukan Deposit, bukan Withdraw — netral),
+    // supaya satu-satunya efek ke saldo akun datang dari baris Income-nya.
+    if (p.Type === 'Transfer') return;
     var sign = p.Type === 'Withdraw' ? 1 : -1; // Deposit ke pocket = uang keluar dari rekening
     balances[p.Account] = (balances[p.Account] || 0) + sign * (Number(p.Amount) || 0);
   });
