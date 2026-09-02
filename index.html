@@ -322,18 +322,19 @@
        sebagai jaring pengaman — kalau memang benar-benar tidak muat (layar
        sangat sempit), kontrolnya pindah ke baris baru secara UTUH dan tetap
        terlihat semua, tidak ada satu pun yang hilang/kepotong. */
-    /* PERBAIKAN LAGI (percobaan ke-3): flex-wrap:wrap masih bisa membuat
+    /* PERBAIKAN LAGI (percobaan ke-4): flex-wrap:wrap masih bisa membuat
        select/tombol "patah" ke baris kedua kalau total lebar kontennya
-       sedikit melebihi lebar yang tersedia di layar — padahal ruang di
-       sebelah kiri (antara judul & kontrol ini, bekas justify-content-between
-       yang sekarang DIHAPUS di markup) sebenarnya cukup kalau kontrolnya
-       boleh menyusut. Solusi final: select/input di sini SEKARANG BOLEH
-       MENYUSUT (flex-shrink, min-width kecil) mengikuti ruang tersedia,
-       BUKAN wrap ke baris baru dan BUKAN discroll/disembunyikan — jadi
-       selalu satu baris dan tidak ada satu pun yang hilang, hanya lebih
-       ramping saat layar sempit. Tombol (Select/Add Income/Add Saving/
-       Monthly-Yearly) TIDAK ikut menyusut (flex-shrink:0) supaya teksnya
-       tidak pernah rusak/tidak terbaca. */
+       sedikit melebihi lebar yang tersedia di layar. Solusi final: select/
+       input di sini SEKARANG BOLEH MENYUSUT (flex-shrink, min-width kecil)
+       mengikuti ruang tersedia, BUKAN wrap ke baris baru dan BUKAN
+       discroll/disembunyikan — jadi selalu satu baris dan tidak ada satu
+       pun yang hilang, hanya lebih ramping saat layar sempit. Tombol
+       (Select/Add Income/Add Saving/Monthly-Yearly) TIDAK ikut menyusut
+       (flex-shrink:0) supaya teksnya tidak pernah rusak/tidak terbaca.
+       Header tetap pakai justify-content-between di parent-nya (lihat
+       markup) supaya kontrol ini tetap rata KANAN seperti desain awal —
+       flex-shrink di sini yang menjaganya tidak pernah wrap/kepotong,
+       bukan dengan mengubah posisinya jadi rata kiri. */
     .hdr-controls-row { flex-wrap:nowrap; min-width:0; }
     .hdr-controls-row select.form-select-sm,
     .hdr-controls-row input.form-control-sm { flex:1 1 60px; min-width:60px; }
@@ -2191,9 +2192,9 @@
 
     <!-- ======================== TRANSACTIONS ======================== -->
     <div id="view-transactions" class="view d-none">
-      <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h4 class="page-title mb-0" style="flex-shrink:0;">Transactions</h4>
-        <div class="d-flex gap-2 align-items-center hdr-controls-row" style="flex:1 1 auto;">
+        <div class="d-flex gap-2 align-items-center hdr-controls-row">
           <select id="trx-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:120px;" onchange="onMonthFilterChange(this)"></select>
           <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:160px;" oninput="debouncedRenderTransactions()">
           <select class="form-select form-select-sm" id="trx-group-filter" style="width:100px;" onchange="renderTransactions()">
@@ -2256,12 +2257,12 @@
 
     <!-- ======================== BUDGETING ======================== -->
     <div id="view-budgeting" class="view d-none">
-      <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div style="flex-shrink:0;">
           <h4 class="page-title mb-0">Budgeting <span class="text-muted small fw-normal" id="bud-month">(July)</span></h4>
           <div class="text-muted small">Plan Income, Savings, and Spending — in that order</div>
         </div>
-        <div class="d-flex align-items-center gap-2 hdr-controls-row" style="flex:1 1 auto;">
+        <div class="d-flex align-items-center gap-2 hdr-controls-row">
           <select id="bud-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:120px;" onchange="onMonthFilterChange(this)"></select>
           <div class="bud-view-toggle" role="group" aria-label="Budgeting view">
             <button type="button" id="bud-view-btn-monthly" class="active" onclick="setBudgetingViewMode('monthly')">Monthly</button>
