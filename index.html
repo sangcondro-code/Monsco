@@ -2160,9 +2160,9 @@
     <div id="view-transactions" class="view d-none">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h4 class="page-title mb-0">Transactions</h4>
-        <div class="d-flex gap-2 align-items-center flex-wrap">
-          <select id="trx-month-select" class="form-select form-select-sm" style="max-width:150px;" onchange="onMonthFilterChange(this)"></select>
-          <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:220px;" oninput="debouncedRenderTransactions()">
+        <div class="d-flex gap-2 align-items-center justify-content-end flex-wrap">
+          <select id="trx-month-select" class="form-select form-select-sm" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
+          <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:200px;" oninput="debouncedRenderTransactions()">
           <select class="form-select form-select-sm" id="trx-group-filter" style="width:140px;" onchange="renderTransactions()">
             <option value="">All Types</option>
             <option value="Income">Income</option>
@@ -2228,8 +2228,8 @@
           <h4 class="page-title mb-0">Budgeting <span class="text-muted small fw-normal" id="bud-month">(July)</span></h4>
           <div class="text-muted small">Plan Income, Savings, and Spending — in that order</div>
         </div>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <select id="bud-month-select" class="form-select form-select-sm" style="max-width:150px;" onchange="onMonthFilterChange(this)"></select>
+        <div class="d-flex align-items-center gap-2 justify-content-end flex-wrap">
+          <select id="bud-month-select" class="form-select form-select-sm" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
           <div class="bud-view-toggle" role="group" aria-label="Budgeting view">
             <button type="button" id="bud-view-btn-monthly" class="active" onclick="setBudgetingViewMode('monthly')">Monthly</button>
             <button type="button" id="bud-view-btn-yearly" onclick="setBudgetingViewMode('yearly')">Yearly</button>
