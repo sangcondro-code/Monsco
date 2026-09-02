@@ -312,25 +312,17 @@
     .trx-select-mode-btn.active { background:var(--brand); border-color:var(--brand); color:#fff; }
 
     /* Baris toolbar di header Transactions & Budgeting (filter bulan, search,
-       tombol Add Income/Saving, dst.) — HARUS selalu satu baris, tidak boleh
-       "patah" ke baris kedua (itu yang bikin tombol terakhir nyangkut sendiri
-       di kiri bawah, kelihatan berantakan). flex-wrap:nowrap mengunci itu.
-       Sebagai jaring pengaman kalau jendela browser sangat sempit (bukan
-       untuk kasus normal), strip ini boleh di-scroll horizontal SENDIRI
-       (bukan memecah layout halaman) — scrollbar-nya disembunyikan supaya
-       tetap terlihat rapi. min-width:0 WAJIB di sini supaya overflow-x:auto
-       benar-benar berfungsi di dalam flex row (default flex item punya
-       min-width:auto yang mencegah elemen ini menyusut/nge-scroll).
-       PENTING: JANGAN pasang justify-content-end/flex-end di elemen ini atau
-       parent-nya. Kombinasi itu dengan overflow-x:auto adalah bug klasik CSS
-       di browser LTR — begitu kontennya meluap, isi paling KIRI (mis. select
-       filter bulan) terdorong ke luar area terlihat dan TIDAK BISA di-scroll
-       balik untuk melihatnya lagi (scrollLeft tidak bisa negatif), jadi
-       kepotong permanen ("eptember" alih-alih "September"). Default
-       (flex-start) aman dipakai bersama overflow-x:auto. */
-    .hdr-controls-row { flex-wrap:nowrap !important; overflow-x:auto; min-width:0; -ms-overflow-style:none; scrollbar-width:none; padding-bottom:2px; }
-    .hdr-controls-row::-webkit-scrollbar { display:none; height:0; }
-    .hdr-controls-row > * { flex-shrink:0; }
+       tombol Add Income/Saving, dst.). CATATAN PENTING (belajar dari
+       percobaan sebelumnya yang GAGAL 2x): JANGAN PAKAI overflow-x:auto atau
+       trik scroll/sembunyi apa pun di sini — kontrol seperti filter bulan
+       atau tombol Add Saving jadi KEPOTONG/HILANG dan tidak bisa dijangkau
+       user sama sekali, itu JAUH lebih buruk daripada sekadar pindah baris.
+       Solusinya di sini murni: (1) semua lebar kontrol diperkecil supaya
+       muat satu baris di lebar layar desktop wajar, (2) flex-wrap:wrap biasa
+       sebagai jaring pengaman — kalau memang benar-benar tidak muat (layar
+       sangat sempit), kontrolnya pindah ke baris baru secara UTUH dan tetap
+       terlihat semua, tidak ada satu pun yang hilang/kepotong. */
+    .hdr-controls-row { flex-wrap:wrap; }
     /* Tinggi tombol Add Income/Add Saving & toggle Monthly/Yearly DISAMAKAN
        ke 31px — tinggi bawaan native <select class="form-select-sm"> (bukan
        sebaliknya), supaya semuanya konsisten sejajar di satu baris. */
@@ -2183,12 +2175,12 @@
 
     <!-- ======================== TRANSACTIONS ======================== -->
     <div id="view-transactions" class="view d-none">
-      <div class="d-flex justify-content-between align-items-center mb-3 flex-nowrap gap-2">
-        <h4 class="page-title mb-0" style="flex-shrink:0;white-space:nowrap;">Transactions</h4>
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h4 class="page-title mb-0">Transactions</h4>
         <div class="d-flex gap-2 align-items-center hdr-controls-row">
-          <select id="trx-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
-          <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:200px;" oninput="debouncedRenderTransactions()">
-          <select class="form-select form-select-sm" id="trx-group-filter" style="width:140px;" onchange="renderTransactions()">
+          <select id="trx-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:120px;" onchange="onMonthFilterChange(this)"></select>
+          <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:160px;" oninput="debouncedRenderTransactions()">
+          <select class="form-select form-select-sm" id="trx-group-filter" style="width:100px;" onchange="renderTransactions()">
             <option value="">All Types</option>
             <option value="Income">Income</option>
             <option value="Needs">Needs</option>
@@ -2196,10 +2188,10 @@
             <option value="Savings">Savings</option>
             <option value="Transfer">Transfer</option>
           </select>
-          <select class="form-select form-select-sm" id="trx-account-filter" style="width:130px;" onchange="renderTransactions()">
+          <select class="form-select form-select-sm" id="trx-account-filter" style="width:105px;" onchange="renderTransactions()">
             <option value="">All Accounts</option>
           </select>
-          <select class="form-select form-select-sm" id="trx-tag-filter" style="width:130px;" onchange="renderTransactions()">
+          <select class="form-select form-select-sm" id="trx-tag-filter" style="width:105px;" onchange="renderTransactions()">
             <option value="">All Tags</option>
           </select>
           <button type="button" class="trx-select-mode-btn" id="trx-select-mode-btn" onclick="toggleTxSelectMode()">Select</button>
@@ -2248,13 +2240,13 @@
 
     <!-- ======================== BUDGETING ======================== -->
     <div id="view-budgeting" class="view d-none">
-      <div class="d-flex justify-content-between align-items-center mb-3 flex-nowrap gap-2">
-        <div style="flex-shrink:0;min-width:0;">
-          <h4 class="page-title mb-0" style="white-space:nowrap;">Budgeting <span class="text-muted small fw-normal" id="bud-month">(July)</span></h4>
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+          <h4 class="page-title mb-0">Budgeting <span class="text-muted small fw-normal" id="bud-month">(July)</span></h4>
           <div class="text-muted small">Plan Income, Savings, and Spending — in that order</div>
         </div>
         <div class="d-flex align-items-center gap-2 hdr-controls-row">
-          <select id="bud-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:130px;" onchange="onMonthFilterChange(this)"></select>
+          <select id="bud-month-select" class="form-select form-select-sm hdr-month-select" style="max-width:120px;" onchange="onMonthFilterChange(this)"></select>
           <div class="bud-view-toggle" role="group" aria-label="Budgeting view">
             <button type="button" id="bud-view-btn-monthly" class="active" onclick="setBudgetingViewMode('monthly')">Monthly</button>
             <button type="button" id="bud-view-btn-yearly" onclick="setBudgetingViewMode('yearly')">Yearly</button>
