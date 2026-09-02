@@ -434,7 +434,19 @@
     .card-table-clip { overflow:hidden; border-radius:.75rem; }
 
     .bud-yearly-section { margin-bottom:1.25rem; }
-    .bud-yearly-section-title { font-size:1rem; font-weight:700; display:flex; align-items:center; gap:8px; margin-bottom:.6rem; }
+    .bud-yearly-section-title { font-size:1rem; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:.6rem; }
+    .bud-yearly-section-title-text { display:flex; align-items:center; gap:8px; }
+    /* Tombol geser kiri/kanan — kecil & minimalis (sesuai permintaan), khusus
+       untuk 3 tabel Yearly Budgeting ini. Scrollbar bawaan browser sengaja
+       disembunyikan di .bud-yearly-scroll (lihat scrollbar-width:none di
+       bawah) supaya tampilan tetap bersih, tapi itu membuat pengguna mouse
+       di PC (tanpa trackpad geser 2 jari) tidak tahu/tidak bisa menggeser
+       tabel ke bulan-bulan lain — makanya ditambahkan tombol panah kecil ini
+       plus dukungan scroll-wheel biasa (lihat budgetingYearlyEnableWheelScroll_). */
+    .bud-yearly-scroll-nav { display:flex; gap:4px; flex-shrink:0; }
+    .bud-yearly-scroll-btn { width:22px; height:22px; border-radius:50%; border:1px solid #d1d5db; background:#fff; color:#6b7280; display:flex; align-items:center; justify-content:center; font-size:.68rem; cursor:pointer; transition:.15s; padding:0; }
+    .bud-yearly-scroll-btn:hover { border-color:var(--brand); color:var(--brand); background:var(--brand-light); }
+    .bud-yearly-scroll-btn:active { transform:scale(.92); }
     .bud-yearly-scroll { overflow-x:auto; overflow-y:visible; -ms-overflow-style:none; scrollbar-width:none; }
     .bud-yearly-scroll::-webkit-scrollbar { display:none; height:0; }
     .bud-yearly-table { border-collapse:collapse; width:max-content; }
@@ -2147,8 +2159,9 @@
     <!-- ======================== TRANSACTIONS ======================== -->
     <div id="view-transactions" class="view d-none">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <h4 class="page-title mb-0">Transactions <span class="text-muted small fw-normal" id="trx-month-label">(July)</span></h4>
+        <h4 class="page-title mb-0">Transactions</h4>
         <div class="d-flex gap-2 align-items-center flex-wrap">
+          <select id="trx-month-select" class="form-select form-select-sm" style="max-width:150px;" onchange="onMonthFilterChange(this)"></select>
           <input type="text" class="form-control form-control-sm" id="trx-search" placeholder="Search category / note / account..." style="width:220px;" oninput="debouncedRenderTransactions()">
           <select class="form-select form-select-sm" id="trx-group-filter" style="width:140px;" onchange="renderTransactions()">
             <option value="">All Types</option>
@@ -2216,6 +2229,7 @@
           <div class="text-muted small">Plan Income, Savings, and Spending — in that order</div>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
+          <select id="bud-month-select" class="form-select form-select-sm" style="max-width:150px;" onchange="onMonthFilterChange(this)"></select>
           <div class="bud-view-toggle" role="group" aria-label="Budgeting view">
             <button type="button" id="bud-view-btn-monthly" class="active" onclick="setBudgetingViewMode('monthly')">Monthly</button>
             <button type="button" id="bud-view-btn-yearly" onclick="setBudgetingViewMode('yearly')">Yearly</button>
@@ -6053,24 +6067,27 @@ function monthLabelParen_(m) {
 function populateMonthSelects() {
   var opts = '<option value="0">All Months</option>';
   MONTH_NAMES.forEach(function (name, i) { opts += '<option value="' + (i + 1) + '">' + name + '</option>'; });
-  ['dash-month', 'm-dash-month', 'm-an-month', 'm-bud-month-select', 'm-tx-month'].forEach(function (id) {
+  ['dash-month', 'trx-month-select', 'bud-month-select', 'm-dash-month', 'm-an-month', 'm-bud-month-select', 'm-tx-month'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) { el.innerHTML = opts; el.value = STATE.month; }
   });
-  // trx-month is a read-only label synced to the single global filter
-  // (Home) — not an independent <select> control. Budgeting now has its
-  // own <select> on mobile (m-bud-month-select), but it drives the SAME
-  // global filter as everything else, it's just also exposed there.
+  // Transactions & Budgeting sekarang punya <select> sendiri di desktop
+  // (trx-month-select, bud-month-select) MAUPUN mobile (m-tx-month,
+  // m-bud-month-select) — tapi semuanya menggerakkan SATU filter global yang
+  // sama (STATE.month / BUD_MONTH), sama seperti dash-month di Financial
+  // Report. Ganti bulan di mana pun, semua tempat lain ikut berubah.
   syncSecondaryMonthLabels_();
 }
 
 /* Sinkronkan label bulan di Transactions & Budgeting (desktop + mobile)
    supaya selalu mengikuti satu filter global (Home), bukan filter sendiri. */
 function syncSecondaryMonthLabels_() {
-  var trxLabel = document.getElementById('trx-month-label');
-  if (trxLabel) trxLabel.textContent = monthLabelParen_(STATE.month);
+  var trxSelect = document.getElementById('trx-month-select');
+  if (trxSelect) trxSelect.value = STATE.month;
   var budLabel = document.getElementById('bud-month');
   if (budLabel) budLabel.textContent = monthLabelParen_(BUD_MONTH);
+  var budSelect = document.getElementById('bud-month-select');
+  if (budSelect) budSelect.value = BUD_MONTH;
   var mBudSelect = document.getElementById('m-bud-month-select');
   if (mBudSelect) mBudSelect.value = BUD_MONTH;
   var mTxSelect = document.getElementById('m-tx-month');
@@ -6093,7 +6110,7 @@ function cancelPendingBudgetEditOnTabSwitch_() {
 
 function onMonthFilterChange(sel) {
   STATE.month = parseInt(sel.value, 10);
-  ['dash-month', 'm-dash-month', 'm-an-month', 'm-bud-month-select', 'm-tx-month'].forEach(function (id) {
+  ['dash-month', 'trx-month-select', 'bud-month-select', 'm-dash-month', 'm-an-month', 'm-bud-month-select', 'm-tx-month'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el && el !== sel) el.value = STATE.month;
   });
@@ -12231,8 +12248,8 @@ function amountColorClass(group) {
 }
 
 function renderTransactions() {
-  var monthLabel = document.getElementById('trx-month-label');
-  if (monthLabel) monthLabel.textContent = monthLabelParen_(STATE.month);
+  var monthSelectEl = document.getElementById('trx-month-select');
+  if (monthSelectEl) monthSelectEl.value = STATE.month;
   var month = STATE.month;
   var groupFilter = document.getElementById('trx-group-filter').value;
   var search = (document.getElementById('trx-search').value || '').toLowerCase();
@@ -12619,7 +12636,16 @@ function confirmDeleteTx(id) {
 /* ---------------------------------------------------------------- */
 function renderBudgeting() {
   var monthSel = document.getElementById('bud-month');
-  if (monthSel) monthSel.textContent = BUD_VIEW_MODE === 'yearly' ? ('(' + STATE.year + ')') : monthLabelParen_(BUD_MONTH);
+  if (monthSel) {
+    // Label ini sekarang HANYA dipakai untuk menampilkan tahun "(2026)" saat
+    // mode Yearly — di mode Monthly, bulan sudah ditampilkan lewat select
+    // #bud-month-select di sebelahnya, jadi label ini disembunyikan supaya
+    // tidak duplikat ("Budgeting (July)" + dropdown yang juga bertuliskan July).
+    monthSel.classList.toggle('d-none', BUD_VIEW_MODE !== 'yearly');
+    monthSel.textContent = BUD_VIEW_MODE === 'yearly' ? ('(' + STATE.year + ')') : monthLabelParen_(BUD_MONTH);
+  }
+  var monthSelectEl = document.getElementById('bud-month-select');
+  if (monthSelectEl) monthSelectEl.classList.toggle('d-none', BUD_VIEW_MODE === 'yearly');
 
   var bodyMonthly = document.getElementById('budgeting-body');
   var bodyYearly = document.getElementById('budgeting-yearly-body');
@@ -12712,7 +12738,13 @@ function computeYearlyPlannedRows_(groupedList) {
 function renderBudgetingYearlySection_(title, icon, color, currentMonthIdx, monthHeadsHtml, bodyRowsHtml, totalCellsHtml) {
   return '' +
     '<div class="bud-yearly-section">' +
-      '<div class="bud-yearly-section-title" style="color:' + color + ';"><i class="fas ' + icon + '"></i> ' + title + '</div>' +
+      '<div class="bud-yearly-section-title">' +
+        '<span class="bud-yearly-section-title-text" style="color:' + color + ';"><i class="fas ' + icon + '"></i> ' + title + '</span>' +
+        '<div class="bud-yearly-scroll-nav">' +
+          '<button type="button" class="bud-yearly-scroll-btn" onclick="budgetingYearlyScrollBy_(-1)" title="Scroll left" aria-label="Scroll left"><i class="fas fa-chevron-left"></i></button>' +
+          '<button type="button" class="bud-yearly-scroll-btn" onclick="budgetingYearlyScrollBy_(1)" title="Scroll right" aria-label="Scroll right"><i class="fas fa-chevron-right"></i></button>' +
+        '</div>' +
+      '</div>' +
       '<div class="card card-table-clip"><div class="card-body p-0">' +
         '<div class="bud-yearly-scroll" data-bud-yearly-scroll>' +
           '<table class="bud-yearly-table">' +
@@ -12849,6 +12881,42 @@ function budgetingYearlyScrollLeft_() {
   return scroller ? scroller.scrollLeft : null;
 }
 
+/* Tombol panah kecil di judul tiap section Yearly (Income Sources/Savings/
+   Needs & Wants) — geser SATU scroller saja; listener 'scroll' yang sudah
+   ada di budgetingYearlySetupScroll_() otomatis menyamakan posisi scroll
+   ketiga tabel lainnya, jadi tidak perlu diulang di sini. */
+function budgetingYearlyScrollBy_(direction) {
+  var wrap = document.getElementById('budgeting-yearly-body');
+  var scroller = wrap ? wrap.querySelector('[data-bud-yearly-scroll]') : null;
+  if (!scroller) return;
+  scroller.scrollBy({ left: direction * 300, behavior: 'smooth' });
+}
+
+/* PENGGUNA MOUSE DI PC (bukan trackpad 2-jari) biasanya tidak tahu tabel ini
+   bisa digeser ke samping — scrollbar-nya sengaja disembunyikan (lihat CSS
+   .bud-yearly-scroll) supaya tampilan bersih/minimalis sesuai permintaan.
+   Supaya tetap bisa diakses tanpa perlu tahu trik Shift+scroll, wheel
+   vertikal biasa (mouse wheel naik/turun) di atas tabel ini langsung
+   diterjemahkan jadi scroll horizontal. Listener dipasang SEKALI per
+   scroller lewat flag dataset (aman dipanggil ulang tiap render). */
+function budgetingYearlyEnableWheelScroll_(wrap) {
+  var scrollers = Array.prototype.slice.call(wrap.querySelectorAll('[data-bud-yearly-scroll]'));
+  scrollers.forEach(function (el) {
+    if (el.dataset.wheelBound) return;
+    el.dataset.wheelBound = '1';
+    el.addEventListener('wheel', function (e) {
+      // Kalau tabel memang tidak overflow (semua kolom sudah muat), biarkan
+      // wheel scroll halaman seperti biasa — tidak perlu di-intercept.
+      if (el.scrollWidth <= el.clientWidth) return;
+      // Kalau user memang sedang scroll horizontal (trackpad/shift+wheel,
+      // deltaX sudah ada), biarkan browser yang urus sendiri secara native.
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }, { passive: false });
+  });
+}
+
 function budgetingYearlySetupScroll_(wrap, currentMonthIdx, preserveScrollLeft) {
   // Sync horizontal scroll across the three cards, then bring the current
   // month into view right away (no manual scrolling needed to find it) —
@@ -12870,6 +12938,8 @@ function budgetingYearlySetupScroll_(wrap, currentMonthIdx, preserveScrollLeft) 
   var lead = currentMonthIdx > -1 ? Math.max(0, currentMonthIdx - 1) : 0;
   var targetScrollLeft = (preserveScrollLeft != null) ? preserveScrollLeft : lead * monthColWidth;
   scrollers.forEach(function (el) { el.scrollLeft = targetScrollLeft; });
+
+  budgetingYearlyEnableWheelScroll_(wrap);
 }
 
 /* Click a Needs/Wants Planned cell in the Yearly view — opens a small
@@ -17903,51 +17973,6 @@ function mBiometricLogin() {
   document.getElementById('login-section').classList.add('d-none');
   showBootLoad('Memuat sesi...');
 
-  // PERBAIKAN #3 (boot/loading awal kadang terasa lama): sebelumnya app
-  // SELALU menunggu 1 round-trip PENUH ke server Apps Script (loginUserBySession)
-  // sebelum ADA APAPUN yang ditampilkan — dan Apps Script kadang butuh
-  // beberapa detik untuk "bangun" (cold start), jadi splash bisa terasa lama
-  // nyangkut padahal sebenarnya cuma nunggu server. Kalau device ini SUDAH
-  // PERNAH login & menyimpan data tahun berjalan (localStorage — lihat
-  // mSaveDataCache_), sesi yang tersimpan hampir selalu masih valid, jadi
-  // TIDAK perlu menunggu server dulu sebelum menampilkan apa pun. Sekarang:
-  // kalau cache data lokal untuk username ini ada, app + data itu langsung
-  // ditampilkan SEKARANG JUGA (optimistic), sementara validasi sesi ke
-  // server tetap jalan seperti biasa di belakang layar. Kalau ternyata sesi
-  // sudah tidak valid (server tegas bilang gagal), baru mundur ke layar
-  // login. Ini TIDAK menambah data yang "bocor": data itu sudah tersimpan
-  // di localStorage perangkat ini sejak sesi login sebelumnya yang sah.
-  var usedInstantCache = false;
-  try {
-    STATE.username = sess.username;
-    var instantCached = mLoadDataCache_(STATE.year);
-    if (instantCached) {
-      STATE.sessionToken = sess.token;
-      STATE.displayName = sess.displayName || sess.username;
-      hideBootLoad();
-      document.documentElement.classList.remove('has-session');
-      var appElBoot = document.getElementById('app');
-      appElBoot.style.display = ''; appElBoot.classList.remove('d-none');
-      var mShellElBoot = document.getElementById('m-shell');
-      if (mShellElBoot) mShellElBoot.classList.remove('d-none');
-      document.getElementById('user-display-name').textContent = STATE.displayName;
-      document.getElementById('dash-greet').textContent = STATE.displayName;
-      applyLoadedData(instantCached);
-      go('dashboard');
-      mGo('home');
-      renderMobileHome();
-      // PENTING (anti data basi): tandai indikator sync sebagai "belum
-      // terkonfirmasi" (abu-abu, sama seperti keadaan awal sebelum initApp()
-      // biasa jalan) SEJAK DETIK INI angka cache ditampilkan. Titik ini baru
-      // berubah warna (setSyncIndicator(false), lihat initApp/silentRefreshData)
-      // begitu server BENAR-BENAR mengonfirmasi datanya masih sama/terbaru —
-      // jadi user selalu punya sinyal visual jujur soal status datanya, bukan
-      // cuma dianggap "pasti sudah fresh" begitu saja.
-      setSyncIndicator(true);
-      usedInstantCache = true;
-    }
-  } catch (eInstant) { usedInstantCache = false; }
-
   // PERBAIKAN #2 (kembali ke layar login padahal sesi masih sah): sebelumnya
   // KEGAGALAN JARINGAN (mis. koneksi belum pulih saat HP baru dibangunkan dari
   // background/sleep) diperlakukan SAMA seperti sesi tidak valid — langsung
@@ -17963,14 +17988,6 @@ function mBiometricLogin() {
         if (!res.success) {
           // Server tegas bilang sesi ini sudah tidak valid — baru di sini aman dihapus.
           clearStoredSession();
-          if (usedInstantCache) {
-            // Sudah terlanjur menampilkan app dari cache lokal secara
-            // optimistic di atas — sembunyikan lagi, sama seperti jalur biasa.
-            var appElOut = document.getElementById('app');
-            appElOut.classList.add('d-none'); appElOut.style.display = 'none';
-            var mShellElOut2 = document.getElementById('m-shell');
-            if (mShellElOut2) mShellElOut2.classList.add('d-none');
-          }
           document.getElementById('login-section').classList.remove('d-none');
           return;
         }
@@ -17989,35 +18006,17 @@ function mBiometricLogin() {
         if (!isRetry) {
           // Kemungkinan besar cuma koneksi belum siap — coba sekali lagi
           // setelah jeda singkat, JANGAN langsung hapus sesi / paksa login.
-          // Kalau app sudah tampil dari cache lokal (usedInstantCache), tidak
-          // perlu menampilkan splash lagi — user sudah bisa pakai appnya.
-          if (!usedInstantCache) showBootLoad('Menyambungkan ulang...');
+          showBootLoad('Menyambungkan ulang...');
           setTimeout(function () { attemptSessionRestore(true); }, 1500);
           return;
         }
-        // Sudah dicoba 2x dan tetap gagal karena JARINGAN (bukan server bilang
-        // sesi invalid) — sesi tersimpan TIDAK dihapus. Kalau tadi sempat
-        // menampilkan app dari cache lokal, JANGAN paksa balik ke layar
-        // login — user tetap bisa pakai app dengan data yang mungkin sedikit
-        // basi, dan auto-refresh berikutnya akan coba sinkron lagi sendiri
-        // begitu koneksi pulih (prinsip sama seperti initApp() saat load
-        // data awal gagal tapi ada cache).
+        // Sudah dicoba 2x dan tetap gagal (bukan cuma sekali gagal) — baru di
+        // sini fallback ke layar login, TAPI sesi tersimpan TIDAK dihapus,
+        // supaya begitu koneksi normal lagi, percobaan berikutnya bisa auto-restore
+        // lagi tanpa user harus ketik ulang username/password.
         hideBootLoad();
         document.documentElement.classList.remove('has-session');
         console.error('Session restore failed after retry:', err);
-        if (usedInstantCache) {
-          // Jaringan gagal 2x saat memvalidasi sesi, TAPI data yang sedang
-          // ditampilkan masih cache lokal (mungkin basi) — jangan cuma
-          // pasrah menunggu siklus auto-refresh berikutnya (bisa sampai 60
-          // detik). Coba tarik data asli SEKARANG JUGA satu kali lagi;
-          // silentRefreshData() sendiri yang akan mengganti tampilan &
-          // menghijaukan indikator sync begitu berhasil, dan aman dipanggil
-          // berulang (ada guard _autoRefreshInFlight di dalamnya).
-          silentRefreshData();
-          startAutoRefresh();
-          startIdleTimer();
-          return;
-        }
         document.getElementById('login-section').classList.remove('d-none');
       })
       .loginUserBySession(sess.username, sess.token);
