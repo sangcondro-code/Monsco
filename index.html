@@ -5286,17 +5286,46 @@ function initApp() {
     renderMobileHome();
   }
 
+  // PERFORMA (login lebih cepat): dulu di sini ada 3 panggilan RPC TERPISAH
+  // sekaligus (getAllDataForYear, getReminderSettings, getDismissedNotifIds)
+  // — dan karena Index.html versi GitHub/Vercel manggil backend lewat
+  // fetch() (bukan lewat iframe google.script.run bawaan Apps Script),
+  // SETIAP panggilan itu adalah EKSEKUSI APPS SCRIPT TERPISAH TOTAL, yang
+  // masing-masing bayar sendiri biaya SpreadsheetApp.openById() dari nol —
+  // itu operasi PALING MAHAL di Apps Script (lihat catatan di ss_()/Kode.gs).
+  // 3 request paralel = 3x biaya buka-spreadsheet yang sebenarnya cukup
+  // SEKALI. Sekarang digabung jadi SATU panggilan (getInitialAppData di
+  // Kode.gs, yang di dalamnya memanggil ketiga fungsi itu sebagai function
+  // call BIASA, bukan RPC terpisah) — jadi cuma SATU eksekusi/SATU
+  // round-trip untuk ketiganya sekaligus. Ini murni penggabungan transport;
+  // isi & bentuk masing-masing bagian datanya (res.data / res.reminders /
+  // res.dismissed) TETAP PERSIS SAMA seperti hasil getAllDataForYear /
+  // getReminderSettings / getDismissedNotifIds masing-masing sebelumnya,
+  // supaya semua handler di bawah ini tidak perlu berubah logikanya.
   google.script.run
-    .withSuccessHandler(function (res) {
+    .withSuccessHandler(function (initRes) {
       setSyncIndicator(false);
-      if (!res.success) {
-        Swal.fire('Error', res.message, 'error');
+
+      var res = initRes && initRes.success ? initRes.data : { success: false, message: initRes && initRes.message };
+      if (!res || !res.success) {
+        Swal.fire('Error', (res && res.message) || 'Failed to load data.', 'error');
         notifInitMark_('data'); // BUG FIX: tanpa ini, gerbang notif nyangkut selamanya kalau res.success===false (beda dgn network failure di bawah, yg sudah ditangani)
-        return;
+      } else {
+        applyLoadedData(res);
+        go('dashboard');
+        renderMobileHome();
       }
-      applyLoadedData(res);
-      go('dashboard');
-      renderMobileHome();
+
+      var remRes = initRes && initRes.reminders;
+      if (remRes && remRes.success) { NOTIF_SETTINGS_CACHE = remRes.settings; }
+      notifInitMark_('settings');
+
+      var dismRes = initRes && initRes.dismissed;
+      if (dismRes && dismRes.success) {
+        DISMISSED_NOTIF_IDS = {};
+        (dismRes.ids || []).forEach(function (id) { DISMISSED_NOTIF_IDS[id] = true; });
+      }
+      notifInitMark_('dismissed');
     })
     .withFailureHandler(function (err) {
       setSyncIndicator(false);
@@ -5305,26 +5334,18 @@ function initApp() {
       // masih lihat data (walau mungkin sedikit basi). Cukup diam-diam gagal,
       // auto-refresh 60 detik berikutnya akan coba lagi sendiri.
       if (!cached) Swal.fire('Error', 'Failed to load data: ' + err.message, 'error');
-      notifInitMark_('data'); // supaya gerbang notif tidak nyangkut selamanya kalau load awal ini gagal
-    })
-    .getAllDataForYear(STATE.year);
-
-  // Ambil pengaturan reminder (threshold + status email) sekali di awal —
-  // dipakai computeReminders() di seluruh sesi. Tidak blocking render utama
-  // di atas; begitu selesai, bell langsung dihitung ulang dengan threshold
-  // yang benar (sebelumnya pakai default sementara).
-  google.script.run
-    .withSuccessHandler(function (res) {
-      if (res && res.success) { NOTIF_SETTINGS_CACHE = res.settings; }
+      // BUG FIX: karena ketiga bagian (data/settings/dismissed) sekarang
+      // datang dari SATU request gabungan, kalau request itu gagal total
+      // (network error), ketiganya sama-sama gagal — semua gerbang notif
+      // WAJIB ditandai selesai di sini juga (dulu masing-masing gerbang
+      // punya failure handler sendiri yang menandainya sendiri-sendiri).
+      // Tanpa ini, gerbang notif bisa nyangkut selamanya kalau request awal
+      // gagal karena jaringan.
+      notifInitMark_('data');
       notifInitMark_('settings');
+      notifInitMark_('dismissed');
     })
-    .withFailureHandler(function () { notifInitMark_('settings'); })
-    .getReminderSettings();
-
-  // Ambil daftar id notifikasi yang sudah pernah di-delete (persisten di
-  // server) — supaya notifikasi yang sudah dihapus TIDAK muncul lagi begitu
-  // app dibuka ulang / ganti device. Tidak blocking render utama.
-  loadDismissedNotifIds_();
+    .getInitialAppData(STATE.year);
 }
 
 /* ==================================================================
