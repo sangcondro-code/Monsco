@@ -5302,7 +5302,21 @@ function initApp() {
   // res.dismissed) TETAP PERSIS SAMA seperti hasil getAllDataForYear /
   // getReminderSettings / getDismissedNotifIds masing-masing sebelumnya,
   // supaya semua handler di bawah ini tidak perlu berubah logikanya.
-  google.script.run
+  //
+  // BUG FIX (kadang "Failed to fetch" pas login): karena SEKARANG cuma ada
+  // 1 request yang mengerjakan 3 hal sekaligus (bukan 3 request pendek
+  // paralel), durasi request ini otomatis lebih panjang — makin panjang
+  // durasi sebuah request jaringan, makin besar juga peluang koneksi
+  // sempat terganggu di tengah jalan (WiFi berkedip, pindah tower seluler,
+  // dsb). mRpcCall_ (shim fetch()) TIDAK punya retry otomatis sama sekali —
+  // sekali gagal, langsung gagal. Supaya penggabungan di atas tidak malah
+  // membuat load awal lebih rapuh, panggilan ini SEKARANG dicoba ulang
+  // OTOMATIS sekali (jeda singkat) sebelum benar-benar dianggap gagal —
+  // pola yang sama persis dengan attemptSessionRestore() di bagian bawah
+  // file ini. Cache lokal (mLoadDataCache_ di atas) tetap jadi jaring
+  // pengaman utama selama proses ini berlangsung.
+  function mLoadInitialAppData_(isRetry) {
+    google.script.run
     .withSuccessHandler(function (initRes) {
       setSyncIndicator(false);
 
@@ -5328,6 +5342,14 @@ function initApp() {
       notifInitMark_('dismissed');
     })
     .withFailureHandler(function (err) {
+      if (!isRetry) {
+        // Kemungkinan besar cuma gangguan jaringan sesaat — coba sekali
+        // lagi setelah jeda singkat sebelum benar-benar dianggap gagal.
+        // TIDAK menampilkan error/spinner tambahan di sini supaya tidak
+        // terlihat "berkedip" kalau percobaan ulang ini berhasil.
+        setTimeout(function () { mLoadInitialAppData_(true); }, 1500);
+        return;
+      }
       setSyncIndicator(false);
       // Kalau ada data cache yang sudah ditampilkan di atas, kegagalan network
       // di sini TIDAK perlu menakut-nakuti user dengan popup error — mereka
@@ -5336,16 +5358,18 @@ function initApp() {
       if (!cached) Swal.fire('Error', 'Failed to load data: ' + err.message, 'error');
       // BUG FIX: karena ketiga bagian (data/settings/dismissed) sekarang
       // datang dari SATU request gabungan, kalau request itu gagal total
-      // (network error), ketiganya sama-sama gagal — semua gerbang notif
-      // WAJIB ditandai selesai di sini juga (dulu masing-masing gerbang
-      // punya failure handler sendiri yang menandainya sendiri-sendiri).
-      // Tanpa ini, gerbang notif bisa nyangkut selamanya kalau request awal
-      // gagal karena jaringan.
+      // (network error) setelah percobaan ulang, ketiganya sama-sama gagal
+      // — semua gerbang notif WAJIB ditandai selesai di sini juga (dulu
+      // masing-masing gerbang punya failure handler sendiri yang
+      // menandainya sendiri-sendiri). Tanpa ini, gerbang notif bisa
+      // nyangkut selamanya kalau request awal ini gagal karena jaringan.
       notifInitMark_('data');
       notifInitMark_('settings');
       notifInitMark_('dismissed');
     })
     .getInitialAppData(STATE.year);
+  }
+  mLoadInitialAppData_(false);
 }
 
 /* ==================================================================
